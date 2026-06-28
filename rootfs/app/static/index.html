@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashforge Adventurer 5M</title>
+    <style>
+        :root {
+            --primary-color: #03a9f4;
+            --card-background-color: #ffffff;
+            --background-color: #f5f5f5;
+            --text-color: #333333;
+            --text-secondary-color: #757575;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --error-color: #f44336;
+            --border-radius: 8px;
+            --box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --card-background-color: #1e1e1e;
+                --background-color: #121212;
+                --text-color: #e0e0e0;
+                --text-secondary-color: #9e9e9e;
+            }
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            padding: 16px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 20px; color: var(--primary-color); }
+        .card {
+            background: var(--card-background-color);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: var(--box-shadow);
+        }
+        .card h2 { margin-bottom: 16px; font-size: 1.2rem; }
+        .status-indicator {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .status-disconnected { background: #9e9e9e; color: white; }
+        .status-ready { background: var(--success-color); color: white; }
+        .status-printing { background: var(--primary-color); color: white; }
+        .status-paused { background: var(--warning-color); color: white; }
+        .status-complete { background: var(--success-color); color: white; }
+        .status-error { background: var(--error-color); color: white; }
+        .temp-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .temp-label { width: 120px; font-weight: 500; }
+        .temp-value { flex: 1; margin-right: 12px; }
+        .temp-bar {
+            flex: 2;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .temp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+            transition: width 0.3s;
+        }
+        .progress-container {
+            text-align: center;
+            padding: 20px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+            transition: width 0.5s;
+        }
+        .progress-text { font-size: 1.5rem; font-weight: bold; color: var(--primary-color); }
+        .time-info {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 10px;
+            color: var(--text-secondary-color);
+        }
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-success { background: var(--success-color); color: white; }
+        .btn-warning { background: var(--warning-color); color: white; }
+        .btn-danger { background: var(--error-color); color: white; }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .webcam-container {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        .webcam-stream { width: 100%; height: 100%; object-fit: cover; }
+        .file-info {
+            text-align: center;
+            padding: 10px;
+            color: var(--text-secondary-color);
+        }
+        .setup-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .setup-form input {
+            padding: 12px;
+            border: 1px solid var(--text-secondary-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            background: var(--card-background-color);
+            color: var(--text-color);
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none; }
+        .device-card {
+            background: var(--card-background-color);
+            border: 1px solid var(--text-secondary-color);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .sensor-item {
+            background: var(--background-color);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .sensor-value { font-size: 1.5rem; font-weight: bold; color: var(--primary-color); }
+        .sensor-label { color: var(--text-secondary-color); font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖨️ Flashforge Adventurer 5M</h1>
+        
+        <!-- Setup Screen -->
+        <div id="setupScreen" class="card hidden">
+            <h2>🔍 Поиск принтера</h2>
+            <div class="setup-form">
+                <input type="text" id="printerIp" placeholder="IP адрес принтера (например, 192.168.1.100)">
+                <input type="number" id="printerPort" placeholder="Порт Moonraker" value="7125">
+                <button class="btn btn-primary" onclick="searchPrinters()">🔍 Автопоиск</button>
+                <button class="btn btn-success" onclick="connectPrinter()">Подключить</button>
+            </div>
+            <div id="searchResults"></div>
+        </div>
+        
+        <!-- Dashboard -->
+        <div id="dashboard" class="hidden">
+            <!-- Status Card -->
+            <div class="card">
+                <h2>📊 Статус принтера</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span id="printerStatus" class="status-indicator status-disconnected">Нет подключения</span>
+                    <button class="btn btn-warning" onclick="showSetup()">⚙️ Настройки</button>
+                </div>
+                <div class="file-info" id="fileInfo">Файл: --</div>
+            </div>
+            
+            <!-- Temperature Card -->
+            <div class="card">
+                <h2>🌡️ Температура</h2>
+                <div class="sensor-grid">
+                    <div class="sensor-item">
+                        <div class="sensor-value" id="extruderTemp">--°C</div>
+                        <div class="sensor-label">Сопло</div>
+                        <div class="temp-bar" style="margin-top: 8px;">
+                            <div class="temp-fill" id="extruderBar" style="width: 0%"></div>
+                        </div>
+                        <small id="extruderTarget">Цель: --°C</small>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-value" id="bedTemp">--°C</div>
+                        <div class="sensor-label">Стол</div>
+                        <div class="temp-bar" style="margin-top: 8px;">
+                            <div class="temp-fill" id="bedBar" style="width: 0%; background: linear-gradient(90deg, #ff9800, #f44336);"></div>
+                        </div>
+                        <small id="bedTarget">Цель: --°C</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Webcam Card -->
+            <div class="card">
+                <h2>📷 Камера</h2>
+                <div class="webcam-container">
+                    <img id="webcam" class="webcam-stream" src="" alt="Webcam stream">
+                </div>
+            </div>
+            
+            <!-- Progress Card -->
+            <div class="card">
+                <h2>⏱️ Прогресс печати</h2>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0%</div>
+                    <div class="time-info">
+                        <span>Прошло: <span id="elapsedTime">--:--</span></span>
+                        <span>Осталось: <span id="remainingTime">--:--</span></span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Control Card -->
+            <div class="card">
+                <h2>🎮 Управление</h2>
+                <div class="control-buttons">
+                    <button class="btn btn-warning" id="pauseBtn" onclick="pausePrint()" disabled>⏸ Пауза</button>
+                    <button class="btn btn-success" id="resumeBtn" onclick="resumePrint()" disabled>▶ Возобновить</button>
+                    <button class="btn btn-danger" id="cancelBtn" onclick="cancelPrint()" disabled>⏹ Отмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let printerData = {
+            state: 'disconnected',
+            extruder_temp: 0,
+            extruder_target: 0,
+            bed_temp: 0,
+            bed_target: 0,
+            progress: 0,
+            filename: '',
+            print_duration: 0
+        };
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            checkConnection();
+        });
+
+        async function checkConnection() {
+            try {
+                const response = await fetch('/api/printer/data');
+                const data = await response.json();
+                if (data && data.state !== 'disconnected') {
+                    printerData = { ...printerData, ...data };
+                    document.getElementById('setupScreen').classList.add('hidden');
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    connectWebSocket();
+                    updateUI();
+                } else {
+                    document.getElementById('setupScreen').classList.remove('hidden');
+                }
+            } catch (e) {
+                document.getElementById('setupScreen').classList.remove('hidden');
+            }
+        }
+
+        function showSetup() {
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('setupScreen').classList.remove('hidden');
+        }
+
+        async function searchPrinters() {
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '<div class="spinner"></div>';
+            try {
+                const response = await fetch('/api/discovery?subnet=192.168.1.0/24');
+                const data = await response.json();
+                resultsDiv.innerHTML = '';
+                if (data.devices && data.devices.length > 0) {
+                    data.devices.forEach(device => {
+                        const card = document.createElement('div');
+                        card.className = 'device-card';
+                        card.innerHTML = `
+                            <span>🖨️ ${device.ip}:${device.port}</span>
+                            <button class="btn btn-primary" onclick="selectPrinter('${device.ip}', ${device.port})">Выбрать</button>
+                        `;
+                        resultsDiv.appendChild(card);
+                    });
+                } else {
+                    resultsDiv.innerHTML = '<p>Принтеры не найдены</p>';
+                }
+            } catch (e) {
+                resultsDiv.innerHTML = '<p>Ошибка поиска: ' + e.message + '</p>';
+            }
+        }
+
+        function selectPrinter(ip, port) {
+            document.getElementById('printerIp').value = ip;
+            document.getElementById('printerPort').value = port;
+        }
+
+        async function connectPrinter() {
+            const ip = document.getElementById('printerIp').value;
+            const port = document.getElementById('printerPort').value;
+            if (!ip) { alert('Введите IP адрес'); return; }
+            try {
+                const response = await fetch('/api/configure', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ printer_ip: ip, moonraker_port: parseInt(port) || 7125 })
+                });
+                const result = await response.json();
+                if (result.status === 'ok') {
+                    location.reload();
+                } else {
+                    alert('Ошибка подключения: ' + (result.error || 'Неизвестная ошибка'));
+                }
+            } catch (e) {
+                alert('Ошибка: ' + e.message);
+            }
+        }
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/websocket`;
+            ws = new WebSocket(wsUrl);
+            ws.onopen = () => console.log('WebSocket connected');
+            ws.onclose = () => {
+                console.log('WebSocket disconnected, reconnecting...');
+                setTimeout(connectWebSocket, 5000);
+            };
+            ws.onerror = (e) => console.error('WebSocket error:', e);
+            ws.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    handleWebSocketMessage(data);
+                } catch (err) {
+                    console.error('Parse error:', err);
+                }
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            if (data.params && data.params.objects) {
+                const objects = data.params.objects;
+                if (objects.extruder) {
+                    printerData.extruder_temp = objects.extruder.temperature;
+                    printerData.extruder_target = objects.extruder.target;
+                }
+                if (objects.heater_bed) {
+                    printerData.bed_temp = objects.heater_bed.temperature;
+                    printerData.bed_target = objects.heater_bed.target;
+                }
+                if (objects.display_status) {
+                    printerData.progress = (objects.display_status.progress || 0) * 100;
+                }
+                if (objects.print_stats) {
+                    printerData.filename = objects.print_stats.filename || '';
+                    printerData.print_duration = objects.print_stats.print_duration || 0;
+                    const state = objects.print_stats.state || '';
+                    if (state) printerData.state = state;
+                }
+                updateUI();
+            }
+        }
+
+        function updateUI() {
+            // Обновление статуса
+            const statusEl = document.getElementById('printerStatus');
+            const statusClass = 'status-' + printerData.state;
+            statusEl.className = 'status-indicator ' + statusClass;
+            statusEl.textContent = translateStatus(printerData.state);
+            
+            // Обновление информации о файле
+            document.getElementById('fileInfo').textContent = 'Файл: ' + (printerData.filename || '--');
+            
+            // Обновление температур
+            document.getElementById('extruderTemp').textContent = printerData.extruder_temp.toFixed(1) + '°C';
+            document.getElementById('extruderTarget').textContent = 'Цель: ' + (printerData.extruder_target || '--') + '°C';
+            const extruderPercent = printerData.extruder_target > 0 ? (printerData.extruder_temp / printerData.extruder_target) * 100 : 0;
+            document.getElementById('extruderBar').style.width = Math.min(extruderPercent, 100) + '%';
+            
+            document.getElementById('bedTemp').textContent = printerData.bed_temp.toFixed(1) + '°C';
+            document.getElementById('bedTarget').textContent = 'Цель: ' + (printerData.bed_target || '--') + '°C';
+            const bedPercent = printerData.bed_target > 0 ? (printerData.bed_temp / printerData.bed_target) * 100 : 0;
+            document.getElementById('bedBar').style.width = Math.min(bedPercent, 100) + '%';
+            
+            // Обновление прогресса
+            const progress = printerData.progress || 0;
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('progressText').textContent = progress.toFixed(1) + '%';
+            
+            // Обновление времени
+            const elapsed = printerData.print_duration || 0;
+            document.getElementById('elapsedTime').textContent = formatTime(elapsed);
+            const remaining = progress > 0 ? (elapsed / (progress / 100)) - elapsed : 0;
+            document.getElementById('remainingTime').textContent = formatTime(remaining);
+            
+            // Обновление кнопок
+            const isPrinting = printerData.state === 'printing';
+            const isPaused = printerData.state === 'paused';
+            document.getElementById('pauseBtn').disabled = !isPrinting;
+            document.getElementById('resumeBtn').disabled = !isPaused;
+            document.getElementById('cancelBtn').disabled = !isPrinting && !isPaused;
+            
+            // Обновление веб-камеры
+            const webcamEl = document.getElementById('webcam');
+            if (printerData.state !== 'disconnected') {
+                webcamEl.src = '/webcam/?action=stream';
+            } else {
+                webcamEl.src = '';
+            }
+        }
+
+        function translateStatus(state) {
+            const translations = {
+                'disconnected': 'Нет подключения',
+                'ready': 'Готов',
+                'printing': 'Печать',
+                'paused': 'Пауза',
+                'complete': 'Завершено',
+                'cancelled': 'Отменено',
+                'error': 'Ошибка'
+            };
+            return translations[state] || state;
+        }
+
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            if (h > 0) return h + 'ч ' + m + 'мин';
+            return m + 'мин';
+        }
+
+        async function pausePrint() {
+            await fetch('/api/print/pause', { method: 'POST' });
+        }
+
+        async function resumePrint() {
+            await fetch('/api/print/resume', { method: 'POST' });
+        }
+
+        async function cancelPrint() {
+            if (confirm('Вы уверены, что хотите отменить печать?')) {
+                await fetch('/api/print/cancel', { method: 'POST' });
+            }
+        }
+
+        // Периодическое обновление данных
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/printer/data');
+                const data = await response.json();
+                if (data && Object.keys(data).length > 0) {
+                    printerData = { ...printerData, ...data };
+                    updateUI();
+                }
+            } catch (e) {
+                console.error('Poll error:', e);
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
