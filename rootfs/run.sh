@@ -7,7 +7,7 @@ if [ -f "/data/options.json" ]; then
     PRINTER_PORT=$(jq -r '.printer_port // 8899' /data/options.json)
     SCAN_PORTS=$(jq -r '.scan_ports // "8899"' /data/options.json)
     SCAN_SUBNET=$(jq -r '.scan_subnet // "192.168.1.0/24"' /data/options.json)
-    LOG_LEVEL=$(jq -r '.log_level // "error"' /data/options.json)
+    LOG_LEVEL=$(jq -r '.log_level // "info"' /data/options.json)
     
     export PRINTER_IP
     export PRINTER_PORT

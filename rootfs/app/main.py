@@ -81,24 +81,49 @@ class FlashforgeClient:
     async def connect(self) -> bool:
         """Connect to Flashforge printer and get initial status"""
         logger.info(f"[{self.printer_id}] Connecting to {self.base_url}...")
+        
+        # Flashforge Adventurer 5M API endpoints
+        endpoints = [
+            "/getPrinterInfo",      # Moonraker/Klipper
+            "/apis/printer/info",    # Alternative Moonraker
+            "/api/printer",          # OctoPrint compatibility
+            "/",                     # Root - check if web server responds
+        ]
+        
         try:
             if self._session is None or self._session.closed:
                 logger.debug(f"[{self.printer_id}] Creating new HTTP session")
                 self._session = aiohttp.ClientSession()
             
-            logger.debug(f"[{self.printer_id}] Sending GET request to {self.base_url}/getPrinterInfo")
-            async with self._session.get(f"{self.base_url}/getPrinterInfo", timeout=aiohttp.ClientTimeout(total=5)) as response:
-                logger.debug(f"[{self.printer_id}] Response status: {response.status}")
-                if response.status == 200:
-                    self._connected = True
-                    self._set_state(PrinterState.READY)
-                    logger.info(f"Connected to Flashforge at {self.printer_ip}:{self.port} (ID: {self.printer_id})")
-                    return True
-                else:
-                    logger.warning(f"[{self.printer_id}] Connection failed - HTTP {response.status}")
+            for endpoint in endpoints:
+                try:
+                    url = f"{self.base_url}{endpoint}"
+                    logger.debug(f"[{self.printer_id}] Trying {url}")
+                    async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                        logger.debug(f"[{self.printer_id}] Response status: {response.status}")
+                        if response.status == 200:
+                            try:
+                                data = await response.json()
+                                logger.info(f"[{self.printer_id}] Response: {json.dumps(data)[:200]}")
+                            except:
+                                text = await response.text()
+                                logger.info(f"[{self.printer_id}] Response (text): {text[:200]}")
+                            
+                            self._connected = True
+                            self._set_state(PrinterState.READY)
+                            logger.info(f"Connected to Flashforge at {self.printer_ip}:{self.port} (ID: {self.printer_id}) via {endpoint}")
+                            return True
+                        else:
+                            logger.debug(f"[{self.printer_id}] Endpoint {endpoint} returned HTTP {response.status}")
+                except Exception as e:
+                    logger.debug(f"[{self.printer_id}] Endpoint {endpoint} failed: {type(e).__name__}: {e}")
+                    continue
+            
+            logger.warning(f"[{self.printer_id}] All endpoints failed")
             self._connected = False
             self._set_state(PrinterState.DISCONNECTED)
             return False
+            
         except asyncio.TimeoutError as e:
             logger.warning(f"[{self.printer_id}] Connection timeout to {self.printer_ip}:{self.port}")
             self._connected = False
@@ -267,22 +292,32 @@ class DiscoveryService:
         return found
     
     async def _check_flashforge(self, ip: str, port: int = 8899) -> Optional[Dict]:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://{ip}:{port}/getPrinterInfo", 
-                                       timeout=aiohttp.ClientTimeout(total=3)) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        logger.debug(f"Host {ip}:{port} responded: {json.dumps(data)[:200]}")
-                        return {"valid": True, "ip": ip, "port": port, "type": "flashforge", "info": data}
-                    else:
-                        logger.debug(f"Host {ip}:{port} returned status {response.status}")
-        except asyncio.TimeoutError:
-            logger.debug(f"Host {ip}:{port} timeout")
-        except aiohttp.ClientError as e:
-            logger.debug(f"Host {ip}:{port} client error: {type(e).__name__}: {e}")
-        except Exception as e:
-            logger.debug(f"Host {ip}:{port} unexpected error: {type(e).__name__}: {e}")
+        """Check if host is a Flashforge printer by trying multiple endpoints"""
+        endpoints = ["/getPrinterInfo", "/apis/printer/info", "/api/printer", "/"]
+        
+        for endpoint in endpoints:
+            try:
+                url = f"http://{ip}:{port}{endpoint}"
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=2)) as response:
+                        if response.status == 200:
+                            try:
+                                data = await response.json()
+                                logger.debug(f"Host {ip}:{port}{endpoint} responded: {json.dumps(data)[:100]}")
+                                return {"valid": True, "ip": ip, "port": port, "type": "flashforge", "info": data}
+                            except:
+                                logger.debug(f"Host {ip}:{port}{endpoint} returned HTML/text - likely web server")
+                                return {"valid": True, "ip": ip, "port": port, "type": "unknown", "info": {}}
+            except asyncio.TimeoutError:
+                logger.debug(f"Host {ip}:{port}{endpoint} timeout")
+                continue
+            except aiohttp.ClientError:
+                logger.debug(f"Host {ip}:{port}{endpoint} client error")
+                continue
+            except Exception as e:
+                logger.debug(f"Host {ip}:{port}{endpoint} error: {type(e).__name__}")
+                continue
+        
         return None
 
 
