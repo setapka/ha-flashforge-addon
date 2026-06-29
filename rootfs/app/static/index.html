@@ -39,6 +39,11 @@ h1{text-align:center;margin-bottom:20px;color:var(--primary-color)}
 .sensor-label{color:var(--text-secondary-color);font-size:0.9rem}
 .printers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:16px;margin-top:16px}
 .printer-card{background:var(--card-background-color);border-radius:var(--border-radius);padding:16px;box-shadow:var(--box-shadow);border-left:4px solid var(--primary-color)}
+.printer-credentials{font-size:0.75rem;color:var(--text-secondary-color);margin:8px 0;padding:8px;background:var(--background-color);border-radius:4px}
+.printer-credentials span{margin-right:12px}
+.auth-status{display:inline-block;padding:4px 8px;border-radius:4px;font-size:0.7rem;font-weight:600}
+.auth-ok{background:var(--success-color);color:#fff}
+.auth-fail{background:#9e9e9e;color:#fff}
 .printer-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .printer-ip{font-weight:bold;color:var(--primary-color)}
 .printer-filename{font-size:0.85rem;color:var(--text-secondary-color);margin:8px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -213,10 +218,21 @@ function renderPrintersGrid() {
         var borderColors = {'disconnected':'#9e9e9e','ready':'#4caf50','printing':'#03a9f4','paused':'#ff9800','complete':'#4caf50','error':'#f44336'};
         card.style.borderLeftColor = borderColors[data.state] || '#03a9f4';
         
+        var serialNumber = data.serial_number || 'N/A';
+        var checkCode = data.check_code || 'N/A';
+        var httpAuth = data.http_authenticated || false;
+        var authClass = httpAuth ? 'auth-ok' : 'auth-fail';
+        var authText = httpAuth ? 'HTTP ✓' : 'HTTP ✗';
+        
         card.innerHTML = 
             '<div class="printer-header">' +
                 '<span class="printer-ip">' + (data.ip || id) + '</span>' +
                 '<span class="status-indicator ' + statusClass + '">' + statusText + '</span>' +
+            '</div>' +
+            '<div class="printer-credentials">' +
+                '<span>🔢 SN: ' + serialNumber + '</span>' +
+                '<span>🔑 CC: ' + checkCode + '</span>' +
+                '<span class="auth-status ' + authClass + '">' + authText + '</span>' +
             '</div>' +
             '<div class="printer-filename" title="' + (data.filename || '') + '">📄 ' + filename + '</div>' +
             '<div class="temp-display">' +
