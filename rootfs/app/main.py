@@ -2,7 +2,7 @@
 """
 Flashforge Adventurer 5M Home Assistant Addon
 Backend application for printer control and monitoring
-Supports up to 100 printers
+Supports up to 100 printers - Native Flashforge API (port 8899)
 """
 
 import os
@@ -20,13 +20,12 @@ try:
 except ImportError:
     ZEROCONF_AVAILABLE = False
 
-MQTT_AVAILABLE = False  # MQTT отключен
-
+MQTT_AVAILABLE = False
 MAX_PRINTERS = 100
 
 LOG_LEVELS = {'error': logging.ERROR, 'warning': logging.WARNING, 'info': logging.INFO, 'debug': logging.DEBUG}
-log_level = os.environ.get('LOG_LEVEL', 'info').lower()
-logging.basicConfig(level=LOG_LEVELS.get(log_level, logging.INFO), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_level = os.environ.get('LOG_LEVEL', 'error').lower()
+logging.basicConfig(level=LOG_LEVELS.get(log_level, logging.ERROR), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -41,108 +40,125 @@ class PrinterState(Enum):
     ERROR = "error"
 
 
-class MoonrakerClient:
-    def __init__(self, printer_id: str, printer_ip: str, port: int = 7125, api_key: Optional[str] = None):
+class FlashforgeClient:
+    """Client for Flashforge Adventurer 5M native API (port 8899)"""
+    
+    def __init__(self, printer_id: str, printer_ip: str, port: int = 8899):
         self.printer_id = printer_id
         self.printer_ip = printer_ip
         self.port = port
-        self.api_key = api_key
         self._session: Optional[aiohttp.ClientSession] = None
-        self._ws: Optional[aiohttp.ClientWebSocketResponse] = None
         self._connected = False
-        self._running = False
-        self._message_callbacks: list = []
         self._printer_state = PrinterState.DISCONNECTED
-        self._printer_data = {"extruder_temp": 0, "extruder_target": 0, "bed_temp": 0, "bed_target": 0, "progress": 0, "filename": "", "state": "disconnected", "print_duration": 0}
+        self._printer_data = {
+            "extruder_temp": 0, "extruder_target": 0,
+            "bed_temp": 0, "bed_target": 0,
+            "progress": 0, "filename": "",
+            "state": "disconnected", "print_duration": 0
+        }
         
     @property
     def base_url(self) -> str:
         return f"http://{self.printer_ip}:{self.port}"
     
     @property
-    def ws_url(self) -> str:
-        return f"ws://{self.printer_ip}:{self.port}/websocket"
-    
-    @property
     def is_connected(self) -> bool:
-        return self._connected and self._ws is not None and not self._ws.closed
+        return self._connected
     
     @property
     def printer_data(self) -> Dict:
         return self._printer_data
-    
-    def add_message_callback(self, callback: Callable):
-        self._message_callbacks.append(callback)
     
     def _set_state(self, state: PrinterState):
         self._printer_state = state
         self._printer_data["state"] = state.value
     
     async def connect(self) -> bool:
+        """Connect to Flashforge printer and get initial status"""
         try:
             if self._session is None or self._session.closed:
                 self._session = aiohttp.ClientSession()
-            self._ws = await self._session.ws_connect(self.ws_url, heartbeat=30)
-            self._connected = True
-            self._running = True
-            self._set_state(PrinterState.READY)
-            logger.info(f"Connected to Moonraker at {self.printer_ip}:{self.port} (ID: {self.printer_id})")
-            return True
+            # Test connection by getting printer info
+            async with self._session.get(f"{self.base_url}/getPrinterInfo", timeout=aiohttp.ClientTimeout(total=5)) as response:
+                if response.status == 200:
+                    self._connected = True
+                    self._set_state(PrinterState.READY)
+                    logger.info(f"Connected to Flashforge at {self.printer_ip}:{self.port}")
+                    return True
+            self._connected = False
+            self._set_state(PrinterState.DISCONNECTED)
+            return False
         except Exception as e:
-            logger.error(f"Connection failed to {self.printer_ip}:{self.port}: {e}")
+            logger.debug(f"Connection failed to {self.printer_ip}:{self.port}: {e}")
             self._connected = False
             self._set_state(PrinterState.DISCONNECTED)
             return False
     
     async def disconnect(self):
-        self._running = False
-        if self._ws and not self._ws.closed:
-            await self._ws.close()
+        self._connected = False
+        self._set_state(PrinterState.DISCONNECTED)
         if self._session and not self._session.closed:
             await self._session.close()
-        self._set_state(PrinterState.DISCONNECTED)
     
-    async def send_request(self, method: str, params: Optional[Dict] = None) -> Optional[Dict]:
-        if not self.is_connected and not await self.connect():
-            return None
-        request_id = int(asyncio.get_event_loop().time() % 1000000)
-        request = {"jsonrpc": "2.0", "method": method, "id": request_id}
-        if params:
-            request["params"] = params
-        try:
-            await self._ws.send_json(request)
-            async with asyncio.timeout(30):
-                async for msg in self._ws:
-                    if msg.type == aiohttp.WSMsgType.TEXT:
-                        data = json.loads(msg.data)
-                        if data.get("id") == request_id:
-                            return data.get("result")
-        except asyncio.TimeoutError:
-            logger.error("Request timeout")
-        except Exception as e:
-            logger.error(f"Request error: {e}")
-        return None
-    
-    async def get_printer_info(self) -> Optional[Dict]:
+    async def get_status(self) -> Optional[Dict]:
+        """Get printer status from Flashforge API"""
         try:
             if not self._session:
                 self._session = aiohttp.ClientSession()
-            async with self._session.get(f"{self.base_url}/printer/info", timeout=aiohttp.ClientTimeout(total=10)) as response:
+            async with self._session.get(f"{self.base_url}/getPrinterStatus", timeout=aiohttp.ClientTimeout(total=5)) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data.get("result", {})
+                    return self._parse_status(data)
         except Exception as e:
-            logger.error(f"Get info error: {e}")
+            logger.debug(f"Get status error: {e}")
         return None
     
+    def _parse_status(self, data: Dict) -> Dict:
+        """Parse Flashforge status response"""
+        # Flashforge API returns different structure than Moonraker
+        result = data.get('result', {})
+        
+        # Temperature data
+        if 'extruder' in result:
+            self._printer_data["extruder_temp"] = float(result.get('extruder', {}).get('temperature', 0))
+            self._printer_data["extruder_target"] = float(result.get('extruder', {}).get('target', 0))
+        if 'bed' in result or 'heater_bed' in result:
+            bed_data = result.get('bed', result.get('heater_bed', {}))
+            self._printer_data["bed_temp"] = float(bed_data.get('temperature', 0))
+            self._printer_data["bed_target"] = float(bed_data.get('target', 0))
+        
+        # Print status
+        print_status = result.get('print_status', result.get('printState', ''))
+        if print_status == 'printing':
+            self._set_state(PrinterState.PRINTING)
+        elif print_status == 'pause':
+            self._set_state(PrinterState.PAUSED)
+        elif print_status == 'completed':
+            self._set_state(PrinterState.COMPLETE)
+        elif print_status == 'cancel':
+            self._set_state(PrinterState.CANCELLED)
+        elif print_status:
+            self._set_state(PrinterState.READY)
+        
+        # Progress and file info
+        self._printer_data["progress"] = float(result.get('progress', 0))
+        self._printer_data["filename"] = result.get('filename', result.get('printFile', ''))
+        self._printer_data["print_duration"] = int(result.get('printTime', result.get('print_duration', 0)))
+        
+        return self._printer_data
+    
     async def send_gcode(self, gcode: str) -> bool:
+        """Send G-code command to printer"""
         try:
             if not self._session:
                 self._session = aiohttp.ClientSession()
-            async with self._session.post(f"{self.base_url}/printer/gcode/script", json={"script": gcode}) as response:
+            # Flashforge uses different endpoint for G-code
+            async with self._session.post(f"{self.base_url}/sendGcode", 
+                                          json={"gcode": gcode},
+                                          timeout=aiohttp.ClientTimeout(total=10)) as response:
                 return response.status == 200
         except Exception as e:
-            logger.error(f"G-code error: {e}")
+            logger.debug(f"G-code error: {e}")
             return False
     
     async def pause_print(self) -> bool:
@@ -153,61 +169,6 @@ class MoonrakerClient:
     
     async def cancel_print(self) -> bool:
         return await self.send_gcode("M0")
-    
-    async def run_websocket_listener(self):
-        while self._running:
-            try:
-                if not self.is_connected and not await self.connect():
-                    await asyncio.sleep(5)
-                    continue
-                async for msg in self._ws:
-                    if msg.type == aiohttp.WSMsgType.TEXT:
-                        try:
-                            data = json.loads(msg.data)
-                            await self._handle_message(data)
-                        except json.JSONDecodeError:
-                            pass
-                    elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                        self._connected = False
-                        break
-                if self._running and not self.is_connected:
-                    await asyncio.sleep(5)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Listener error: {e}")
-                if self._running:
-                    await asyncio.sleep(5)
-    
-    async def _handle_message(self, data: Dict):
-        if "params" in data and "objects" in data["params"]:
-            objects = data["params"]["objects"]
-            for callback in self._message_callbacks:
-                try:
-                    await callback(objects)
-                except Exception as e:
-                    logger.error(f"Callback error: {e}")
-            if "extruder" in objects:
-                self._printer_data["extruder_temp"] = objects["extruder"].get("temperature", 0)
-                self._printer_data["extruder_target"] = objects["extruder"].get("target", 0)
-            if "heater_bed" in objects:
-                self._printer_data["bed_temp"] = objects["heater_bed"].get("temperature", 0)
-                self._printer_data["bed_target"] = objects["heater_bed"].get("target", 0)
-            if "display_status" in objects:
-                self._printer_data["progress"] = objects["display_status"].get("progress", 0) * 100
-            if "print_stats" in objects:
-                stats = objects["print_stats"]
-                self._printer_data["filename"] = stats.get("filename", "")
-                self._printer_data["print_duration"] = stats.get("print_duration", 0)
-                state = stats.get("state", "")
-                if state == "printing":
-                    self._set_state(PrinterState.PRINTING)
-                elif state == "paused":
-                    self._set_state(PrinterState.PAUSED)
-                elif state == "complete":
-                    self._set_state(PrinterState.COMPLETE)
-                elif state == "cancelled":
-                    self._set_state(PrinterState.CANCELLED)
 
 
 class DiscoveryService:
@@ -215,39 +176,7 @@ class DiscoveryService:
         self.found_devices: Dict[str, Dict] = {}
         self._zeroconf: Optional[Zeroconf] = None
     
-    async def mdns_discovery(self, timeout: int = 5) -> list:
-        if not ZEROCONF_AVAILABLE:
-            return []
-        services = {}
-        def on_service_state_change(zeroconf, service_type, name, state_change):
-            if state_change == ServiceStateChange.Added:
-                info = zeroconf.get_service_info(service_type, name)
-                if info:
-                    addresses = [str(addr) for addr in info.addresses]
-                    services[name] = {"name": name, "ip": addresses[0] if addresses else None, "port": info.port, "discovery_method": "mdns"}
-        try:
-            self._zeroconf = Zeroconf()
-            browser = ServiceBrowser(self._zeroconf, "_moonraker._tcp.local.", [on_service_state_change])
-            await asyncio.sleep(timeout)
-            browser.cancel()
-            if self._zeroconf:
-                self._zeroconf.close()
-        except Exception as e:
-            logger.error(f"mDNS discovery error: {e}")
-        return list(services.values())
-    
-    async def http_validate(self, ip: str, port: int = 7125) -> Optional[Dict]:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://{ip}:{port}/printer/info", timeout=aiohttp.ClientTimeout(total=5)) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return {"valid": True, "ip": ip, "port": port, "type": "moonraker", "info": data.get("result", {})}
-        except Exception as e:
-            logger.debug(f"Validation failed for {ip}:{port} - {e}")
-        return None
-    
-    async def scan_subnet(self, subnet: str, port: int = 7125, max_hosts: int = MAX_PRINTERS) -> list:
+    async def scan_subnet(self, subnet: str, port: int = 8899, max_hosts: int = MAX_PRINTERS) -> list:
         from ipaddress import IPv4Network
         try:
             network = IPv4Network(subnet, strict=False)
@@ -255,23 +184,39 @@ class DiscoveryService:
         except Exception as e:
             logger.error(f"Invalid subnet: {e}")
             return []
+        
         semaphore = asyncio.Semaphore(50)
+        
         async def check_host(ip: str):
             async with semaphore:
-                return await self.http_validate(ip, port)
+                return await self._check_flashforge(ip, port)
+        
         tasks = [check_host(ip) for ip in hosts]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         found = [r for r in results if r and r.get("valid")]
         logger.info(f"Discovery complete: found {len(found)} printers in {subnet}")
         return found
+    
+    async def _check_flashforge(self, ip: str, port: int = 8899) -> Optional[Dict]:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://{ip}:{port}/getPrinterInfo", 
+                                       timeout=aiohttp.ClientTimeout(total=3)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {"valid": True, "ip": ip, "port": port, "type": "flashforge", "info": data}
+        except Exception:
+            pass
+        return None
 
 
 class FlashforgeAddon:
     def __init__(self):
-        self.printers: Dict[str, MoonrakerClient] = {}
+        self.printers: Dict[str, FlashforgeClient] = {}
         self.discovery = DiscoveryService()
         self.app = web.Application()
         self.setup_routes()
+        self._poll_task: Optional[asyncio.Task] = None
     
     def setup_routes(self):
         self.app.router.add_get('/', self.handle_index)
@@ -295,9 +240,19 @@ class FlashforgeAddon:
     async def handle_printers_list(self, request):
         printers_info = []
         for pid, printer in self.printers.items():
-            info = {"id": pid, "ip": printer.printer_ip, "port": printer.port, "state": printer.printer_data.get("state", "disconnected"), "data": printer.printer_data}
+            info = {
+                "id": pid,
+                "ip": printer.printer_ip,
+                "port": printer.port,
+                "state": printer.printer_data.get("state", "disconnected"),
+                "data": printer.printer_data
+            }
             printers_info.append(info)
-        return web.json_response({"printers": printers_info, "count": len(printers_info), "max_printers": MAX_PRINTERS})
+        return web.json_response({
+            "printers": printers_info,
+            "count": len(printers_info),
+            "max_printers": MAX_PRINTERS
+        })
     
     async def handle_all_printers_data(self, request):
         all_data = {}
@@ -308,7 +263,7 @@ class FlashforgeAddon:
     async def handle_discovery(self, request):
         subnet = request.query.get('subnet', '192.168.1.0/24')
         try:
-            devices = await self.discovery.scan_subnet(subnet, 7125, MAX_PRINTERS)
+            devices = await self.discovery.scan_subnet(subnet, 8899, MAX_PRINTERS)
         except Exception as e:
             devices = []
             logger.error(f"Discovery error: {e}")
@@ -320,16 +275,29 @@ class FlashforgeAddon:
         try:
             data = await request.json()
             printer_ip = data.get('printer_ip', '')
-            printer_port = data.get('moonraker_port', 7125)
+            # Support both old (moonraker_port) and new (printer_port) parameter names
+            printer_port = data.get('printer_port', data.get('moonraker_port', 8899))
             printer_id = data.get('printer_id', f"printer_{len(self.printers) + 1}")
+            
             if not printer_ip:
                 return web.json_response({'error': 'printer_ip required'}, status=400)
             if printer_id in self.printers:
                 return web.json_response({'error': 'Printer ID already exists'}, status=400)
-            new_printer = MoonrakerClient(printer_id, printer_ip, printer_port)
+            
+            new_printer = FlashforgeClient(printer_id, printer_ip, printer_port)
             self.printers[printer_id] = new_printer
-            asyncio.create_task(self._connect_printer(printer_id))
-            return web.json_response({'status': 'ok', 'printer_id': printer_id, 'printer_ip': printer_ip})
+            
+            # Try to connect
+            connected = await new_printer.connect()
+            if connected:
+                await new_printer.get_status()
+            
+            return web.json_response({
+                'status': 'ok' if connected else 'connected_false',
+                'printer_id': printer_id,
+                'printer_ip': printer_ip,
+                'connected': connected
+            })
         except Exception as e:
             logger.error(f"Add printer error: {e}")
             return web.json_response({'error': str(e)}, status=500)
@@ -368,11 +336,16 @@ class FlashforgeAddon:
                 return web.json_response({'status': 'ok'})
         return web.json_response({'error': 'Failed to cancel'}, status=500)
     
-    async def _connect_printer(self, printer_id: str):
-        if printer_id in self.printers:
-            printer = self.printers[printer_id]
-            await printer.connect()
-            asyncio.create_task(printer.run_websocket_listener())
+    async def _poll_printers(self):
+        """Periodically poll all printers for status updates"""
+        while True:
+            for printer in self.printers.values():
+                if printer.is_connected:
+                    try:
+                        await printer.get_status()
+                    except Exception as e:
+                        logger.debug(f"Poll error for {printer.printer_id}: {e}")
+            await asyncio.sleep(2)
     
     async def run(self):
         runner = web.AppRunner(self.app)
@@ -380,12 +353,18 @@ class FlashforgeAddon:
         site = web.TCPSite(runner, '0.0.0.0', 8099)
         await site.start()
         logger.info(f"Application started on port 8099 (max printers: {MAX_PRINTERS})")
+        
+        # Start polling task
+        self._poll_task = asyncio.create_task(self._poll_printers())
+        
         try:
             while True:
                 await asyncio.sleep(3600)
         except asyncio.CancelledError:
             pass
         finally:
+            if self._poll_task:
+                self._poll_task.cancel()
             for printer in self.printers.values():
                 await printer.disconnect()
             await runner.cleanup()
