@@ -17,7 +17,7 @@ RUN apk add --no-cache \
 
 # Установка Python-зависимостей
 COPY requirements.txt /tmp/
-RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+RUN pip3 install --break-system-packages --no-cache-dir -r /tmp/requirements.txt
 
 # Копирование приложения
 COPY rootfs/ /
