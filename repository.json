@@ -1,17 +1,17 @@
 {
   "name": "Flashforge Adventurer 5M Addon Repository",
-  "url": "https://github.com/username/ha-flashforge-addon",
-  "maintainer": "Your Name <your.email@example.com>",
+  "url": "https://github.com/setapka/ha-flashforge-addon",
+  "maintainer": "Setap <your.email@example.com>",
   "addons": [
     {
       "name": "Flashforge Adventurer 5M Control Panel",
       "slug": "flashforge_adv5m",
       "description": "Интеграция и UI-панель для управления 3D-принтером Flashforge Adventurer 5M на базе Klipper/Moonraker",
-      "url": "https://github.com/username/ha-flashforge-addon",
+      "url": "https://github.com/setapka/ha-flashforge-addon",
       "version": "1.0.0",
       "arch": ["aarch64", "amd64", "armv7"],
       "homeassistant": "2023.1.0",
-      "image": "ghcr.io/username/ha-flashforge-addon/{arch}"
+      "image": "ghcr.io/setapka/ha-flashforge-addon/{arch}"
     }
   ]
 }
