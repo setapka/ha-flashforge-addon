@@ -55,7 +55,10 @@ h1{text-align:center;margin-bottom:20px;color:var(--primary-color)}
 .input-group{margin:8px 0}
 .input-group input{width:100%;padding:12px;border:1px solid var(--text-secondary-color);border-radius:8px;font-size:1rem;background:var(--card-background-color);color:var(--text-color)}
 .action-buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-.device-card{background:var(--card-background-color);border:1px solid var(--text-secondary-color);border-radius:8px;padding:12px;margin:8px 0;display:flex;justify-content:space-between;align-items:center}
+.device-card{background:var(--card-background-color);border:1px solid var(--text-secondary-color);border-radius:8px;padding:12px;margin:8px 0;display:flex;flex-direction:column;gap:8px}
+.device-info{display:flex;justify-content:space-between;align-items:center;width:100%}
+.device-details{font-size:0.85rem;color:var(--text-secondary-color)}
+.device-details span{margin-right:12px}
 .spinner{border:4px solid #f3f3f3;border-top:4px solid var(--primary-color);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:20px auto}
 @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
 .hidden{display:none}
@@ -273,11 +276,34 @@ function searchPrinters() {
         .then(function(data) {
             resultsDiv.innerHTML = '';
             if(data.devices && data.devices.length > 0) {
+                var foundText = data.count === 1 ? 'найден' : (data.count >= 2 && data.count <= 4 ? 'найдено' : 'найдено');
+                resultsDiv.innerHTML = '<p style="text-align:center;color:var(--success-color);font-weight:bold">✓ UDP Discovery: ' + data.count + ' принтера(ов) ' + foundText + '</p>';
+                
                 data.devices.forEach(function(device) {
                     var card = document.createElement('div');
                     card.className = 'device-card';
-                    card.innerHTML = '<span>' + device.ip + ':' + device.port + '</span>' +
-                        '<button class="btn btn-primary" onclick="selectPrinter(\'' + device.ip + '\',' + device.port + ')">Выбрать</button>';
+                    
+                    var info = device.info || {};
+                    var machineName = info.machine_name || 'N/A';
+                    var serialNumber = info.serial_number || 'N/A';
+                    var status = info.status || 'Unknown';
+                    var httpPort = info.http_port || 'N/A';
+                    var discoverType = device.type || 'unknown';
+                    
+                    var statusClass = status === 'Ready' ? 'status-ready' : (status === 'Busy' ? 'status-printing' : 'status-error');
+                    
+                    card.innerHTML = 
+                        '<div class="device-info">' +
+                            '<span class="printer-ip">' + device.ip + ':' + device.port + '</span>' +
+                            '<span class="status-indicator ' + statusClass + '">' + status + '</span>' +
+                        '</div>' +
+                        '<div class="device-details">' +
+                            '<span>🖨️ ' + machineName + '</span>' +
+                            '<span>🔢 ' + serialNumber + '</span>' +
+                            '<span>🌐 HTTP:' + httpPort + '</span>' +
+                            '<span>📡 ' + discoverType + '</span>' +
+                        '</div>' +
+                        '<button class="btn btn-primary" onclick="selectPrinter(\'' + device.ip + '\',' + device.port + ')">🔌 Подключить</button>';
                     resultsDiv.appendChild(card);
                 });
             } else {
