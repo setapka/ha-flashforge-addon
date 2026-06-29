@@ -312,7 +312,8 @@ class MQTTService:
         self.client: Optional[mqtt.Client] = None
         self._connected = False
         if MQTT_AVAILABLE:
-            self.client = mqtt.Client(client_id=f"{device_id}_addon")
+            # Используем MQTTv5 для совместимости
+            self.client = mqtt.Client(mqtt.CallbackAPIVersion.V2, client_id=f"{device_id}_addon")
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
     
