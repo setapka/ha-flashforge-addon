@@ -86,7 +86,7 @@ class FlashforgeClient:
         self._printer_data = {
             "extruder_temp": 0.0, "extruder_target": 0.0, "bed_temp": 0.0, "bed_target": 0.0,
             "progress": 0, "filename": "", "state": "disconnected",
-            "machine_status": "", "move_mode": "", "serial_number": "", "check_code": "",
+            "machine_status": "", "move_mode": "", "machine_name": "", "serial_number": "", "check_code": "",
             "http_authenticated": False, "current_layer": 0, "total_layers": 0,
             "elapsed_time": 0, "remaining_time": 0, "start_time": None,
             "filament_status": "unknown", "door_status": "unknown",
@@ -143,6 +143,7 @@ class FlashforgeClient:
                 asyncio.open_connection(self.printer_ip, self.port), timeout=5.0)
             tcp_connected = True
             await self._get_credentials()
+            await self._get_machine_name()
             self._printer_data["camera_stream_url"] = f"http://{self.printer_ip}:8080/?action=stream"
             await self._detect_camera()
         except Exception as e:
@@ -191,6 +192,26 @@ class FlashforgeClient:
                 logger.error(f"[{self.printer_id}] Parse credentials error: {type(e).__name__}: {e}")
         else:
             logger.debug(f"[{self.printer_id}] No response to M9000 command")
+    
+    async def _get_machine_name(self):
+        """Get machine name using M119 command"""
+        response = await self._send_command(b"~M119\r\n")
+        if response:
+            try:
+                text = response.decode('utf-8', errors='ignore')
+                logger.debug(f"[{self.printer_id}] M119 response: {text[:200]}")
+                # Look for machine name in response
+                for line in text.split('\r\n'):
+                    if 'Machine Type:' in line or 'Machine:' in line:
+                        match = re.search(r'Machine(?: Type)?[:\s]*(.+)', line, re.IGNORECASE)
+                        if match:
+                            self._printer_data["machine_name"] = match.group(1).strip()
+                            logger.info(f"[{self.printer_id}] Found machine name: {match.group(1).strip()}")
+            except Exception as e:
+                logger.debug(f"[{self.printer_id}] Parse machine name error: {type(e).__name__}: {e}")
+        # Fallback: use IP-based name
+        if not self._printer_data["machine_name"]:
+            self._printer_data["machine_name"] = f"Adventurer 5M ({self.printer_ip})"
     
     async def disconnect(self):
         self._connected = False

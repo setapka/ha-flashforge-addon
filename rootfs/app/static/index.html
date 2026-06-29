@@ -132,7 +132,7 @@ if(ids.length===0){g.innerHTML='<div class="empty">Нет принтеров</di
 g.innerHTML='';
 ids.forEach(function(id){var d=data[id],card=document.createElement('div'),sc='st-'+(d.state||'disconnected'),st=tr(d.state),et=(d.extruder_temp||0).toFixed(1),ett=(d.extruder_target||0).toFixed(0),bt=(d.bed_temp||0).toFixed(1),btt=(d.bed_target||0).toFixed(0),prg=d.progress||0,fn=d.filename||'---',cl=d.current_layer||0,tl=d.total_layers||0,eta=fmt(d.remaining_time||0),el=fmt(d.elapsed_time||0),sn=d.serial_number||'N/A',cc=d.check_code||'N/A',ha=d.http_authenticated||false,ac=ha?'auth-ok':'auth-no',at=ha?'HTTP OK':'HTTP NO',ca=d.camera_available||false,cu=d.camera_stream_url||'',fs=d.filament_status||'unknown',ds=d.door_status||'unknown';
 card.className='printer'+(d.state==='error'?' err':'');
-var h='<div class="p-hdr"><span class="p-ip">'+(d.ip||id)+'</span><span class="status '+sc+'">'+st+'</span></div>';
+var h='<div class="p-hdr"><span class="p-ip">'+(d.machine_name||d.ip||id)+'</span><span class="status '+sc+'">'+st+'</span></div>';
 h+='<div class="p-vid">';if(ca&&cu){h+='<img src="'+cu+'" alt="Cam">';}else{h+='<div class="vid-ph">📷 Камера не подключена<br><small>(Camera Kit для 5M)</small></div>';}h+='</div>';
 h+='<div class="tabs"><button class="tab active" onclick="sw(this,\'m\',\''+id+'\')">Основное</button><button class="tab" onclick="sw(this,\'s\',\''+id+'\')">Датчики</button><button class="tab" onclick="sw(this,\'c\',\''+id+'\')">Инфо</button></div>';
 h+='<div class="tab-c active" id="m-'+id+'"><div class="creds"><span>SN:'+sn+'</span><span>CC:'+cc+'</span><span class="auth-st '+ac+'">'+at+'</span></div>';
