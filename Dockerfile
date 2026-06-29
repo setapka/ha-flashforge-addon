@@ -11,8 +11,7 @@ RUN apk add --no-cache \
     openssl \
     curl \
     jq \
-    zeroconf \
-    avahi-libs \
+    avahi \
     python3 \
     py3-pip
 
