@@ -254,6 +254,22 @@ class DiscoveryService:
         self._hosts_checked = 0
         self._printers_found = 0
     
+    async def _check_tcp_port(self, ip: str, port: int, timeout: float = 1.0) -> bool:
+        """Check if TCP port is open on host"""
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(ip, port),
+                timeout=timeout
+            )
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
+            return False
+        except Exception as e:
+            logger.debug(f"TCP port check error for {ip}:{port}: {e}")
+            return False
+    
     async def scan_subnet(self, subnet: str, port: int = 8899, max_hosts: int = MAX_PRINTERS) -> list:
         from ipaddress import IPv4Network
         logger.info(f"Starting discovery scan: subnet={subnet}, port={port}, max_hosts={max_hosts}")
@@ -273,11 +289,22 @@ class DiscoveryService:
         async def check_host(ip: str):
             async with semaphore:
                 try:
-                    result = await self._check_flashforge(ip, port)
-                    if result:
-                        self._printers_found += 1
-                    self._hosts_checked += 1
-                    return result
+                    # First check if TCP port is open
+                    port_open = await self._check_tcp_port(ip, port)
+                    if port_open:
+                        logger.info(f"TCP port {port} open on {ip}")
+                        # Then try HTTP endpoints
+                        result = await self._check_flashforge(ip, port)
+                        if result:
+                            self._printers_found += 1
+                        else:
+                            # Port is open but no HTTP response - still report as potential printer
+                            result = {"valid": True, "ip": ip, "port": port, "type": "tcp_open", "info": {"message": "TCP port open, HTTP endpoints not responding"}}
+                        self._hosts_checked += 1
+                        return result
+                    else:
+                        self._hosts_checked += 1
+                        return None
                 except Exception as e:
                     logger.debug(f"Check host {ip} error: {e}")
                     self._hosts_checked += 1
@@ -291,7 +318,7 @@ class DiscoveryService:
         for r in results:
             if r is not None and isinstance(r, dict) and r.get("valid"):
                 found.append(r)
-                logger.info(f"Printer found: {r['ip']}:{r['port']}")
+                logger.info(f"Printer found: {r['ip']}:{r['port']} (type: {r.get('type', 'unknown')})")
         
         logger.info(f"Discovery complete: checked {self._hosts_checked} hosts, found {len(found)} printers in {subnet}")
         return found
