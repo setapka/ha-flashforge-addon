@@ -2,7 +2,11 @@
 """
 Flashforge Adventurer 5M Home Assistant Addon
 Backend application for printer control and monitoring
-Uses TCP socket protocol with G-code commands (port 8899)
+
+Supports:
+- TCP Protocol (port 8899): G-code commands, no authentication required
+- HTTP REST API (port 8898): JSON-based, requires CheckCode authentication
+- UDP Discovery Protocol: Auto-discovery via multicast/broadcast
 """
 
 import os
@@ -14,6 +18,7 @@ import aiohttp
 from aiohttp import web
 from typing import Dict, Any, Optional, List, Tuple
 from enum import Enum
+from dataclasses import dataclass, field
 
 try:
     from zeroconf import Zeroconf, ServiceBrowser, ServiceStateChange
@@ -64,23 +69,178 @@ STATUS_REPLY_REGEX = re.compile(
 )
 
 
-class FlashforgeClient:
-    """Client for Flashforge Adventurer 5M TCP Protocol (port 8899)"""
+@dataclass
+class PrinterCredentials:
+    """Credentials for HTTP REST API authentication"""
+    serial_number: str = ""
+    check_code: str = ""
+    is_valid: bool = False
+
+
+class HttpClient:
+    """HTTP REST API Client for Flashforge printers (port 8898)"""
     
-    def __init__(self, printer_id: str, printer_ip: str, port: int = 8899):
+    def __init__(self, ip: str, port: int = 8898, credentials: Optional[PrinterCredentials] = None):
+        self.ip = ip
+        self.port = port
+        self.base_url = f"http://{ip}:{port}"
+        self.credentials = credentials or PrinterCredentials()
+        self._session: Optional[aiohttp.ClientSession] = None
+        self._auth_token: Optional[str] = None
+        
+    async def connect(self) -> bool:
+        """Test HTTP connection and get auth token"""
+        try:
+            self._session = aiohttp.ClientSession()
+            
+            # Try to authenticate and get token
+            if self.credentials.serial_number and self.credentials.check_code:
+                auth_data = {
+                    "serialNumber": self.credentials.serial_number,
+                    "checkCode": self.credentials.check_code
+                }
+                async with self._session.post(
+                    f"{self.base_url}/detail",
+                    json=auth_data,
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    if resp.status == 200:
+                        self.credentials.is_valid = True
+                        logger.info(f"HTTP API authenticated for {self.ip}")
+                        return True
+                    else:
+                        logger.warning(f"HTTP API auth failed for {self.ip}: {resp.status}")
+                        self.credentials.is_valid = False
+                        return False
+            return False
+        except Exception as e:
+            logger.debug(f"HTTP API connection error: {e}")
+            if self._session:
+                await self._session.close()
+                self._session = None
+            return False
+    
+    async def disconnect(self):
+        """Close HTTP session"""
+        if self._session:
+            await self._session.close()
+            self._session = None
+    
+    async def get_status(self) -> Optional[Dict]:
+        """Get printer status via HTTP REST API"""
+        if not self._session or not self.credentials.is_valid:
+            return None
+        
+        try:
+            async with self._session.get(
+                f"{self.base_url}/status",
+                timeout=aiohttp.ClientTimeout(total=3)
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+        except Exception as e:
+            logger.debug(f"HTTP get_status error: {e}")
+        return None
+    
+    async def get_temperatures(self) -> Optional[Dict]:
+        """Get temperatures via HTTP REST API"""
+        if not self._session or not self.credentials.is_valid:
+            return None
+        
+        try:
+            async with self._session.get(
+                f"{self.base_url}/temperatures",
+                timeout=aiohttp.ClientTimeout(total=3)
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+        except Exception as e:
+            logger.debug(f"HTTP get_temperatures error: {e}")
+        return None
+    
+    async def send_gcode(self, gcode: str) -> bool:
+        """Send G-code via HTTP REST API"""
+        if not self._session or not self.credentials.is_valid:
+            return False
+        
+        try:
+            auth_data = {
+                "serialNumber": self.credentials.serial_number,
+                "checkCode": self.credentials.check_code,
+                "gcode": gcode
+            }
+            async with self._session.post(
+                f"{self.base_url}/gcode",
+                json=auth_data,
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    logger.info(f"HTTP G-code '{gcode}' sent successfully")
+                    return True
+        except Exception as e:
+            logger.debug(f"HTTP send_gcode error: {e}")
+        return False
+    
+    async def upload_gcode(self, filename: str, gcode_data: bytes) -> bool:
+        """Upload G-code file via HTTP REST API"""
+        if not self._session or not self.credentials.is_valid:
+            return False
+        
+        try:
+            form = aiohttp.FormData()
+            form.add_field('serialNumber', self.credentials.serial_number)
+            form.add_field('checkCode', self.credentials.check_code)
+            form.add_field('file', gcode_data, filename=filename)
+            
+            async with self._session.post(
+                f"{self.base_url}/uploadGcode",
+                data=form,
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
+                if resp.status == 200:
+                    logger.info(f"HTTP G-code file '{filename}' uploaded successfully")
+                    return True
+        except Exception as e:
+            logger.error(f"HTTP upload_gcode error: {e}")
+        return False
+
+
+class FlashforgeClient:
+    """
+    Flashforge Adventurer 5M Client with dual protocol support:
+    - TCP Protocol (port 8899): G-code commands, no authentication
+    - HTTP REST API (port 8898): JSON-based, requires CheckCode auth
+    """
+    
+    def __init__(self, printer_id: str, printer_ip: str, port: int = 8899, 
+                 serial_number: str = "", check_code: str = ""):
         self.printer_id = printer_id
         self.printer_ip = printer_ip
         self.port = port
+        self.http_port = 8898
+        
+        # TCP connection
         self._reader: Optional[asyncio.StreamReader] = None
         self._writer: Optional[asyncio.StreamWriter] = None
         self._connected = False
         self._printer_state = PrinterState.DISCONNECTED
+        
+        # HTTP client
+        self.credentials = PrinterCredentials(
+            serial_number=serial_number,
+            check_code=check_code
+        )
+        self.http_client: Optional[HttpClient] = None
+        
+        # Printer data
         self._printer_data = {
             "extruder_temp": 0.0, "extruder_target": 0.0,
             "bed_temp": 0.0, "bed_target": 0.0,
             "progress": 0, "filename": "",
             "state": "disconnected", "print_duration": 0,
-            "machine_status": "", "move_mode": ""
+            "machine_status": "", "move_mode": "",
+            "serial_number": "", "check_code": "",
+            "http_authenticated": False
         }
         self._lock = asyncio.Lock()
         
@@ -92,47 +252,110 @@ class FlashforgeClient:
     def printer_data(self) -> Dict:
         return self._printer_data
     
+    @property
+    def serial_number(self) -> str:
+        return self._printer_data.get("serial_number", "")
+    
+    @property
+    def check_code(self) -> str:
+        return self._printer_data.get("check_code", "")
+    
     def _set_state(self, state: PrinterState):
         self._printer_state = state
         self._printer_data["state"] = state.value
     
     async def connect(self) -> bool:
-        """Connect to Flashforge printer via TCP socket"""
+        """Connect to Flashforge printer via TCP socket and HTTP REST API"""
         logger.info(f"[{self.printer_id}] Connecting to {self.printer_ip}:{self.port}...")
         
+        tcp_connected = False
+        http_connected = False
+        
+        # Connect via TCP (port 8899) - no auth required
         try:
             self._reader, self._writer = await asyncio.wait_for(
                 asyncio.open_connection(self.printer_ip, self.port),
                 timeout=5.0
             )
-            self._connected = True
-            self._set_state(PrinterState.READY)
-            logger.info(f"[{self.printer_id}] Connected to {self.printer_ip}:{self.port}")
+            tcp_connected = True
+            logger.info(f"[{self.printer_id}] TCP connected to {self.printer_ip}:{self.port}")
             
-            # Get initial status
-            await self.get_status()
-            return True
+            # Get credentials via TCP
+            await self._get_credentials()
             
-        except asyncio.TimeoutError:
-            logger.warning(f"[{self.printer_id}] Connection timeout to {self.printer_ip}:{self.port}")
-            self._connected = False
-            self._set_state(PrinterState.DISCONNECTED)
-            return False
-        except ConnectionRefusedError:
-            logger.warning(f"[{self.printer_id}] Connection refused on {self.printer_ip}:{self.port}")
-            self._connected = False
-            self._set_state(PrinterState.DISCONNECTED)
-            return False
         except Exception as e:
-            logger.error(f"[{self.printer_id}] Connection error: {type(e).__name__}: {e}")
-            self._connected = False
-            self._set_state(PrinterState.DISCONNECTED)
-            return False
+            logger.warning(f"[{self.printer_id}] TCP connection error: {e}")
+        
+        # Connect via HTTP (port 8898) - requires auth
+        if self.credentials.serial_number and self.credentials.check_code:
+            self.http_client = HttpClient(
+                self.printer_ip, 
+                self.http_port, 
+                self.credentials
+            )
+            http_connected = await self.http_client.connect()
+            self._printer_data["http_authenticated"] = http_connected
+            if http_connected:
+                logger.info(f"[{self.printer_id}] HTTP REST API authenticated")
+        
+        self._connected = tcp_connected
+        self._set_state(PrinterState.READY if tcp_connected else PrinterState.DISCONNECTED)
+        
+        if tcp_connected:
+            await self.get_status()
+        
+        return tcp_connected
+    
+    async def _get_credentials(self):
+        """Get serial number and check code from printer via TCP
+        
+        Command: M9000 - Get device info
+        Response format varies by firmware version
+        """
+        # Try to get device info
+        response = await self._send_command(b"~M9000\r\n")
+        if response:
+            try:
+                text = response.decode('utf-8', errors='ignore')
+                # Parse response for serial number
+                # Format: "Device Info:\r\nSerial: SNXXXXX\r\n..."
+                for line in text.split('\r\n'):
+                    if 'Serial:' in line or 'SN:' in line:
+                        sn_match = re.search(r'SN[:\s]*([A-Za-z0-9]+)', line)
+                        if sn_match:
+                            self._printer_data["serial_number"] = sn_match.group(1)
+                            self.credentials.serial_number = sn_match.group(1)
+                    if 'CheckCode:' in line or 'VerifyCode:' in line:
+                        cc_match = re.search(r'(?:CheckCode|VerifyCode)[:\s]*(\d+)', line)
+                        if cc_match:
+                            self._printer_data["check_code"] = cc_match.group(1)
+                            self.credentials.check_code = cc_match.group(1)
+                logger.debug(f"[{self.printer_id}] Credentials: SN={self.credentials.serial_number}, CC={self.credentials.check_code}")
+            except Exception as e:
+                logger.debug(f"[{self.printer_id}] Parse credentials error: {e}")
+        
+        # Alternative: use discovery data if available
+        if not self.credentials.serial_number:
+            # Try M115 for firmware info
+            response = await self._send_command(b"~M115\r\n")
+            if response:
+                text = response.decode('utf-8', errors='ignore')
+                sn_match = re.search(r'SN[:\s]*([A-Za-z0-9]+)', text)
+                if sn_match:
+                    self._printer_data["serial_number"] = sn_match.group(1)
+                    self.credentials.serial_number = sn_match.group(1)
     
     async def disconnect(self):
         """Disconnect from printer"""
         self._connected = False
         self._set_state(PrinterState.DISCONNECTED)
+        
+        # Disconnect HTTP client
+        if self.http_client:
+            await self.http_client.disconnect()
+            self.http_client = None
+        
+        # Disconnect TCP client
         if self._writer:
             try:
                 self._writer.close()
