@@ -172,19 +172,25 @@ class FlashforgeClient:
         if response:
             try:
                 text = response.decode('utf-8', errors='ignore')
+                logger.debug(f"[{self.printer_id}] M9000 response: {text[:200]}")
                 for line in text.split('\r\n'):
-                    if 'Serial:' in line or 'SN:' in line:
-                        sn_match = re.search(r'SN[:\s]*([A-Za-z0-9]+)', line)
+                    line = line.strip()
+                    if 'Serial:' in line or 'SN:' in line or 'SerialNumber' in line:
+                        sn_match = re.search(r'(?:Serial[:\s]*|SN[:\s]*|SerialNumber[:\s]*)([A-Za-z0-9]+)', line, re.IGNORECASE)
                         if sn_match:
                             self._printer_data["serial_number"] = sn_match.group(1)
                             self.credentials.serial_number = sn_match.group(1)
-                    if 'CheckCode:' in line or 'VerifyCode:' in line:
-                        cc_match = re.search(r'(?:CheckCode|VerifyCode)[:\s]*(\d+)', line)
+                            logger.info(f"[{self.printer_id}] Found SN: {sn_match.group(1)}")
+                    if 'CheckCode:' in line or 'VerifyCode:' in line or 'CheckCode' in line:
+                        cc_match = re.search(r'(?:CheckCode|VerifyCode)[:\s]*(\d+)', line, re.IGNORECASE)
                         if cc_match:
                             self._printer_data["check_code"] = cc_match.group(1)
                             self.credentials.check_code = cc_match.group(1)
+                            logger.info(f"[{self.printer_id}] Found CC: {cc_match.group(1)}")
             except Exception as e:
-                logger.debug(f"[{self.printer_id}] Parse credentials error: {e}")
+                logger.error(f"[{self.printer_id}] Parse credentials error: {type(e).__name__}: {e}")
+        else:
+            logger.debug(f"[{self.printer_id}] No response to M9000 command")
     
     async def disconnect(self):
         self._connected = False
