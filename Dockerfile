@@ -1,4 +1,5 @@
-FROM python:3.11-alpine
+ARG BUILD_FROM
+FROM ${BUILD_FROM}
 
 # Метаданные
 LABEL maintainer="Flashforge Addon Developer"
@@ -11,11 +12,13 @@ RUN apk add --no-cache \
     curl \
     jq \
     zeroconf \
-    avahi-libs
+    avahi-libs \
+    python3 \
+    py3-pip
 
 # Установка Python-зависимостей
 COPY requirements.txt /tmp/
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
 # Копирование приложения
 COPY rootfs/ /
