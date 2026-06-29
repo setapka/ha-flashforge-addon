@@ -82,12 +82,17 @@ class FlashforgeClient:
         """Connect to Flashforge printer and get initial status"""
         logger.info(f"[{self.printer_id}] Connecting to {self.base_url}...")
         
-        # Flashforge Adventurer 5M API endpoints
+        # Extended list of endpoints for Flashforge Adventurer 5M and similar printers
         endpoints = [
-            "/getPrinterInfo",      # Moonraker/Klipper
-            "/apis/printer/info",    # Alternative Moonraker
-            "/api/printer",          # OctoPrint compatibility
-            "/",                     # Root - check if web server responds
+            "/getPrinterInfo",           # Flashforge native API
+            "/getPrinterStatus",         # Flashforge native API - status
+            "/apis/printer/info",        # Moonraker alternative
+            "/apis/printer/status",      # Moonraker status
+            "/api/printer",              # OctoPrint compatibility
+            "/api/printer/status",       # OctoPrint status
+            "/printer/info",             # Generic Klipper
+            "/printer/status",           # Generic Klipper status
+            "/",                         # Root - check if web server responds
         ]
         
         try:
@@ -293,7 +298,18 @@ class DiscoveryService:
     
     async def _check_flashforge(self, ip: str, port: int = 8899) -> Optional[Dict]:
         """Check if host is a Flashforge printer by trying multiple endpoints"""
-        endpoints = ["/getPrinterInfo", "/apis/printer/info", "/api/printer", "/"]
+        # Extended list of endpoints for Flashforge Adventurer 5M and similar printers
+        endpoints = [
+            "/getPrinterInfo",           # Flashforge native API
+            "/getPrinterStatus",         # Flashforge native API - status
+            "/apis/printer/info",        # Moonraker alternative
+            "/apis/printer/status",      # Moonraker status
+            "/api/printer",              # OctoPrint compatibility
+            "/api/printer/status",       # OctoPrint status
+            "/printer/info",             # Generic Klipper
+            "/printer/status",           # Generic Klipper status
+            "/",                         # Root - check if web server responds
+        ]
         
         for endpoint in endpoints:
             try:
@@ -305,10 +321,16 @@ class DiscoveryService:
                         if response.status == 200:
                             try:
                                 data = await response.json()
-                                logger.debug(f"Host {ip}:{port}{endpoint} responded: {json.dumps(data)[:100]}")
+                                logger.info(f"Host {ip}:{port}{endpoint} responded: {json.dumps(data)[:100]}")
                                 return {"valid": True, "ip": ip, "port": port, "type": "flashforge", "info": data}
                             except json.JSONDecodeError as je:
-                                logger.debug(f"Host {ip}:{port}{endpoint} returned non-JSON: {je}")
+                                # Non-JSON response - check if it's HTML or text
+                                text = await response.text()
+                                logger.debug(f"Host {ip}:{port}{endpoint} returned non-JSON: {text[:100]}")
+                                # If it's HTML with title containing "flashforge" or "printer", consider it valid
+                                if 'flashforge' in text.lower() or 'printer' in text.lower() or 'klipper' in text.lower():
+                                    logger.info(f"Host {ip}:{port}{endpoint} identified as printer by HTML content")
+                                    return {"valid": True, "ip": ip, "port": port, "type": "web_printer", "info": {"content": text[:200]}}
                                 # Still return as valid device but mark as unknown
                                 return {"valid": True, "ip": ip, "port": port, "type": "web", "info": {"endpoint": endpoint}}
                             except Exception as e:
