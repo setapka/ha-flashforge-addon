@@ -15,16 +15,12 @@ from typing import Dict, Any, Optional, Callable, List
 from enum import Enum
 
 try:
-    import paho.mqtt.client as mqtt
-    MQTT_AVAILABLE = True
-except ImportError:
-    MQTT_AVAILABLE = False
-
-try:
     from zeroconf import Zeroconf, ServiceBrowser, ServiceStateChange
     ZEROCONF_AVAILABLE = True
 except ImportError:
     ZEROCONF_AVAILABLE = False
+
+MQTT_AVAILABLE = False  # MQTT отключен
 
 MAX_PRINTERS = 100
 
@@ -376,11 +372,7 @@ class FlashforgeAddon:
         if printer_id in self.printers:
             printer = self.printers[printer_id]
             await printer.connect()
-            await printer.subscribe({"heater_bed": ["temperature", "target"], "extruder": ["temperature", "target"], "print_stats": ["filename", "state"], "display_status": ["progress"]}, self._on_printer_data_update)
             asyncio.create_task(printer.run_websocket_listener())
-    
-    def _on_printer_data_update(self, objects: Dict):
-        pass  # Callback for future use
     
     async def run(self):
         runner = web.AppRunner(self.app)
