@@ -5,7 +5,7 @@
   "addons": [
     {
       "name": "Flashforge Adventurer 5M Control Panel",
-      "slug": "flashforge_adv5m",
+      "slug": "flashforge_5m_panel",
       "description": "Интеграция и UI-панель для управления 3D-принтером Flashforge Adventurer 5M на базе Klipper/Moonraker",
       "url": "https://github.com/setapka/ha-flashforge-addon",
       "version": "1.0.0",
