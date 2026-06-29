@@ -251,38 +251,169 @@ class FlashforgeClient:
 
 
 class DiscoveryService:
+    """
+    FlashForge Discovery Protocol Implementation
+    
+    Modern Protocol (5M / 5M Pro / AD5X):
+    - UDP Multicast: 225.0.0.9:19000
+    - UDP Broadcast: 255.255.255.255:48899
+    - Response: 276 bytes binary packet
+    
+    Packet Structure (276 bytes, Big Endian):
+    - Offset 0x00 (128 bytes): Machine Name (null-terminated)
+    - Offset 0x84 (2 bytes): Command Port (TCP) - typically 8899
+    - Offset 0x92 (128 bytes): Serial Number (null-terminated)
+    - Offset 0x8E (2 bytes): HTTP/Event Port - typically 8898
+    - Offset 0x8A (2 bytes): Status Code (0=Ready, 1=Busy, 2=Error)
+    """
+    
     def __init__(self):
         self.found_devices: Dict[str, Dict] = {}
-        self._zeroconf: Optional[Zeroconf] = None
         self._hosts_checked = 0
         self._printers_found = 0
     
-    async def _check_tcp_port(self, ip: str, port: int, timeout: float = 1.0) -> bool:
-        """Check if TCP port is open on host"""
+    async def _send_udp_discovery(self, address: str, port: int, timeout: float = 2.0) -> List[Dict]:
+        """Send UDP discovery packet and collect responses"""
+        import socket
+        
+        found = []
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.settimeout(timeout)
+        
         try:
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(ip, port),
-                timeout=timeout
-            )
-            writer.close()
-            await writer.wait_closed()
-            return True
-        except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
-            return False
+            # Send discovery packet (any payload, printer ignores it)
+            discovery_packet = b"FLASHFORGE_DISCOVERY"
+            sock.sendto(discovery_packet, (address, port))
+            logger.debug(f"Sent UDP discovery to {address}:{port}")
+            
+            # Collect responses
+            while True:
+                try:
+                    data, addr = sock.recvfrom(512)
+                    ip = addr[0]
+                    logger.debug(f"Received UDP response from {ip}: {len(data)} bytes")
+                    
+                    if len(data) >= 276:
+                        # Parse response packet
+                        printer_info = self._parse_discovery_response(data, ip)
+                        if printer_info:
+                            found.append(printer_info)
+                            logger.info(f"UDP Discovery: {printer_info}")
+                    else:
+                        # Small response - just note the IP
+                        found.append({
+                            "valid": True,
+                            "ip": ip,
+                            "port": 8899,
+                            "type": "flashforge_udp",
+                            "info": {"message": "UDP discovery response"}
+                        })
+                        
+                except socket.timeout:
+                    break
+                except Exception as e:
+                    logger.debug(f"UDP response error: {e}")
+                    break
+                    
+        finally:
+            sock.close()
+        
+        return found
+    
+    def _parse_discovery_response(self, data: bytes, ip: str) -> Optional[Dict]:
+        """Parse 276-byte discovery response"""
+        if len(data) < 276:
+            return None
+        
+        try:
+            # Machine Name at offset 0x00 (128 bytes)
+            machine_name = data[0x00:0x80].rstrip(b'\x00').decode('utf-8', errors='ignore')
+            
+            # Command Port (TCP) at offset 0x84 (2 bytes, Big Endian)
+            command_port = int.from_bytes(data[0x84:0x86], byteorder='big')
+            
+            # Serial Number at offset 0x92 (128 bytes)
+            serial_number = data[0x92:0x112].rstrip(b'\x00').decode('utf-8', errors='ignore')
+            
+            # HTTP/Event Port at offset 0x8E (2 bytes)
+            http_port = int.from_bytes(data[0x8E:0x90], byteorder='big')
+            
+            # Status Code at offset 0x8A (2 bytes): 0=Ready, 1=Busy, 2=Error
+            status_code = int.from_bytes(data[0x8A:0x8C], byteorder='big')
+            status_map = {0: 'Ready', 1: 'Busy', 2: 'Error'}
+            status = status_map.get(status_code, f'Unknown({status_code})')
+            
+            return {
+                "valid": True,
+                "ip": ip,
+                "port": command_port if command_port > 0 else 8899,
+                "type": "flashforge_discovery",
+                "info": {
+                    "machine_name": machine_name,
+                    "serial_number": serial_number,
+                    "http_port": http_port,
+                    "status": status,
+                    "status_code": status_code
+                }
+            }
         except Exception as e:
-            logger.debug(f"TCP port check error for {ip}:{port}: {e}")
-            return False
+            logger.debug(f"Parse discovery response error: {e}")
+            return None
     
     async def scan_subnet(self, subnet: str, port: int = 8899, max_hosts: int = MAX_PRINTERS) -> list:
+        """Scan subnet using UDP discovery protocol"""
         from ipaddress import IPv4Network
-        logger.info(f"Starting discovery scan: subnet={subnet}, port={port}, max_hosts={max_hosts}")
+        
+        logger.info(f"Starting UDP discovery scan: subnet={subnet}")
         self._hosts_checked = 0
         self._printers_found = 0
+        
+        all_found = []
+        
+        # Method 1: UDP Multicast (225.0.0.9:19000)
+        logger.info("Sending UDP Multicast discovery (225.0.0.9:19000)...")
+        try:
+            multicast_results = await self._send_udp_discovery("225.0.0.9", 19000)
+            all_found.extend(multicast_results)
+            logger.info(f"Multicast found: {len(multicast_results)} printers")
+        except Exception as e:
+            logger.debug(f"Multicast discovery error: {e}")
+        
+        # Method 2: UDP Broadcast (255.255.255.255:48899)
+        logger.info("Sending UDP Broadcast discovery (255.255.255.255:48899)...")
+        try:
+            broadcast_results = await self._send_udp_discovery("255.255.255.255", 48899)
+            all_found.extend(broadcast_results)
+            logger.info(f"Broadcast found: {len(broadcast_results)} printers")
+        except Exception as e:
+            logger.debug(f"Broadcast discovery error: {e}")
+        
+        # Method 3: TCP port scan as fallback (for legacy printers)
+        logger.info(f"TCP port scan fallback: subnet={subnet}, port={port}")
+        tcp_results = await self._tcp_scan_subnet(subnet, port, max_hosts)
+        all_found.extend(tcp_results)
+        
+        # Deduplicate by IP
+        seen_ips = set()
+        unique_found = []
+        for device in all_found:
+            ip = device.get('ip', '')
+            if ip and ip not in seen_ips:
+                seen_ips.add(ip)
+                unique_found.append(device)
+        
+        self._printers_found = len(unique_found)
+        logger.info(f"UDP Discovery complete: found {len(unique_found)} unique printers")
+        return unique_found
+    
+    async def _tcp_scan_subnet(self, subnet: str, port: int, max_hosts: int) -> List[Dict]:
+        """Fallback TCP port scan"""
+        from ipaddress import IPv4Network
         
         try:
             network = IPv4Network(subnet, strict=False)
             hosts = [str(host) for host in network.hosts()][:max_hosts]
-            logger.info(f"Network parsed: {len(hosts)} hosts to check in {subnet}")
         except Exception as e:
             logger.error(f"Invalid subnet '{subnet}': {e}")
             return []
@@ -292,40 +423,26 @@ class DiscoveryService:
         async def check_host(ip: str):
             async with semaphore:
                 try:
-                    # First check if TCP port is open
-                    port_open = await self._check_tcp_port(ip, port)
-                    if port_open:
-                        logger.info(f"TCP port {port} open on {ip}")
-                        # TCP port open - it's likely a printer
-                        result = {
-                            "valid": True, 
-                            "ip": ip, 
-                            "port": port, 
-                            "type": "flashforge_tcp",
-                            "info": {"message": "TCP port 8899 open - Flashforge printer"}
-                        }
-                        self._printers_found += 1
-                        self._hosts_checked += 1
-                        return result
-                    else:
-                        self._hosts_checked += 1
-                        return None
-                except Exception as e:
-                    logger.debug(f"Check host {ip} error: {e}")
-                    self._hosts_checked += 1
+                    reader, writer = await asyncio.wait_for(
+                        asyncio.open_connection(ip, port),
+                        timeout=1.0
+                    )
+                    writer.close()
+                    await writer.wait_closed()
+                    return {
+                        "valid": True,
+                        "ip": ip,
+                        "port": port,
+                        "type": "flashforge_tcp",
+                        "info": {"message": f"TCP port {port} open"}
+                    }
+                except:
                     return None
         
-        logger.info(f"Launching {len(hosts)} concurrent host checks...")
         tasks = [check_host(ip) for ip in hosts]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        found = []
-        for r in results:
-            if r is not None and isinstance(r, dict) and r.get("valid"):
-                found.append(r)
-                logger.info(f"Printer found: {r['ip']}:{r['port']} (type: {r.get('type', 'unknown')})")
-        
-        logger.info(f"Discovery complete: checked {self._hosts_checked} hosts, found {len(found)} printers in {subnet}")
+        found = [r for r in results if r is not None and isinstance(r, dict) and r.get("valid")]
         return found
 
 
