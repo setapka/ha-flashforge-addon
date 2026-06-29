@@ -24,7 +24,7 @@ hassio_role: default
 options:
   printer_ip: ""
   moonraker_port: 7125
-  log_level: "info"
+  log_level: "error"
 schema:
   printer_ip: "str?"
   moonraker_port: "int"
