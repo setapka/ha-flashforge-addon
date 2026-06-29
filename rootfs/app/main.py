@@ -517,6 +517,57 @@ class FlashforgeAddon:
                 else:
                     logger.warning(f"Failed to auto-connect to {printer_ip}:{printer_port}")
     
+    async def _auto_discover_and_connect(self):
+        """Auto-discover printers in network and connect to them"""
+        subnet = os.environ.get('SCAN_SUBNET', '192.168.1.0/24')
+        ports_str = os.environ.get('SCAN_PORTS', '8899')
+        
+        try:
+            ports = [int(p.strip()) for p in ports_str.split(',') if p.strip()]
+        except Exception as e:
+            logger.warning(f"Failed to parse ports '{ports_str}': {e}")
+            ports = [8899]
+        
+        logger.info(f"Starting auto-discovery: subnet={subnet}, ports={ports}")
+        
+        all_devices = []
+        for port in ports:
+            try:
+                logger.info(f"Scanning port {port}...")
+                devices = await self.discovery.scan_subnet(subnet, port, MAX_PRINTERS // len(ports))
+                all_devices.extend(devices)
+            except Exception as e:
+                logger.error(f"Discovery error on port {port}: {type(e).__name__}: {e}")
+        
+        if not all_devices:
+            logger.warning(f"No printers found in {subnet}")
+            return
+        
+        logger.info(f"Found {len(all_devices)} printer(s), connecting...")
+        
+        for device in all_devices:
+            ip = device.get('ip', '')
+            port = device.get('port', 8899)
+            if not ip:
+                continue
+            
+            printer_id = f"printer_{ip.replace('.', '_')}"
+            if printer_id in self.printers:
+                logger.debug(f"Printer {printer_id} already connected, skipping")
+                continue
+            
+            logger.info(f"Connecting to discovered printer: {printer_id} at {ip}:{port}")
+            new_printer = FlashforgeClient(printer_id, ip, port)
+            self.printers[printer_id] = new_printer
+            connected = await new_printer.connect()
+            if connected:
+                await new_printer.get_status()
+                logger.info(f"Connected to discovered printer: {ip}:{port}")
+            else:
+                logger.warning(f"Failed to connect to discovered printer: {ip}:{port}")
+        
+        logger.info(f"Auto-discovery complete: {len(self.printers)} printer(s) connected")
+    
     async def run(self):
         runner = web.AppRunner(self.app)
         await runner.setup()
@@ -529,8 +580,14 @@ class FlashforgeAddon:
         logger.info(f"Scan ports: {os.environ.get('SCAN_PORTS', '8899')}")
         logger.info("=" * 50)
         
-        # Auto-connect to config printers
-        await self._auto_connect_config_printers()
+        # Auto-connect to config printers OR auto-discover printers
+        printer_ip = os.environ.get('PRINTER_IP', '')
+        if printer_ip:
+            logger.info("Printer IP configured - using manual configuration")
+            await self._auto_connect_config_printers()
+        else:
+            logger.info("Printer IP not configured - starting auto-discovery...")
+            await self._auto_discover_and_connect()
         
         # Start polling task
         self._poll_task = asyncio.create_task(self._poll_printers())
