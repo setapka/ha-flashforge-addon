@@ -262,12 +262,19 @@ class FlashforgeAddon:
     
     async def handle_discovery(self, request):
         subnet = request.query.get('subnet', '192.168.1.0/24')
+        ports_str = request.query.get('ports', '8899')
         try:
-            devices = await self.discovery.scan_subnet(subnet, 8899, MAX_PRINTERS)
-        except Exception as e:
-            devices = []
-            logger.error(f"Discovery error: {e}")
-        return web.json_response({'devices': devices, 'count': len(devices)})
+            ports = [int(p.strip()) for p in ports_str.split(',') if p.strip()]
+        except:
+            ports = [8899]
+        all_devices = []
+        for port in ports:
+            try:
+                devices = await self.discovery.scan_subnet(subnet, port, MAX_PRINTERS // len(ports))
+                all_devices.extend(devices)
+            except Exception as e:
+                logger.error(f"Discovery error on port {port}: {e}")
+        return web.json_response({'devices': all_devices, 'count': len(all_devices), 'ports': ports})
     
     async def handle_add_printer(self, request):
         if len(self.printers) >= MAX_PRINTERS:

@@ -24,10 +24,12 @@ hassio_role: default
 options:
   printer_ip: ""
   printer_port: 8899
+  scan_ports: "8899"
   log_level: "error"
 schema:
   printer_ip: "str?"
   printer_port: "int"
+  scan_ports: "str?"
   log_level: "list(error|warning|info|debug)"
 map:
   - ssl:ro
