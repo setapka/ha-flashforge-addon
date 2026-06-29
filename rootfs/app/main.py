@@ -583,7 +583,8 @@ class FlashforgeAddon:
         for port in ports:
             try:
                 logger.info(f"Scanning port {port}...")
-                devices = await self.discovery.scan_subnet(subnet, port, MAX_PRINTERS // len(ports))
+                # Scan with higher limit to find all printers (up to 254 hosts in /24)
+                devices = await self.discovery.scan_subnet(subnet, port, 254)
                 all_devices.extend(devices)
             except Exception as e:
                 logger.error(f"Discovery error on port {port}: {type(e).__name__}: {e}")
