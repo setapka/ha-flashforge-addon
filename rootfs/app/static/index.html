@@ -46,6 +46,7 @@ h1{text-align:center;margin-bottom:20px;color:var(--primary-color)}
 .temp-bar{height:20px;background:#e0e0e0;border-radius:10px;overflow:hidden;margin-top:8px}
 .temp-fill{height:100%;background:linear-gradient(90deg,var(--primary-color),var(--success-color));transition:width 0.3s}
 input[type="text"],input[type="number"]{width:100%;padding:12px;margin:8px 0;border:1px solid var(--text-secondary-color);border-radius:8px;font-size:1rem;background:var(--card-background-color);color:var(--text-color)}
+.subnet-input{margin-top:10px}
 </style>
 </head>
 <body>
@@ -56,8 +57,11 @@ input[type="text"],input[type="number"]{width:100%;padding:12px;margin:8px 0;bor
 <input type="text" id="printerIp" placeholder="IP адрес принтера (например, 192.168.1.100)">
 <input type="number" id="printerPort" placeholder="Порт принтера" value="8899">
 <input type="text" id="scanPorts" placeholder="Порты для сканирования (через запятую)" value="8899">
-<button class="btn btn-primary" onclick="searchPrinters()">Автопоиск (192.168.1.0/24)</button>
+<input type="text" id="subnetInput" class="subnet-input" placeholder="Подсеть для поиска (например, 192.168.1.0/24)" value="192.168.1.0/24">
+<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+<button class="btn btn-primary" onclick="searchPrinters()">Автопоиск</button>
 <button class="btn btn-success" onclick="connectPrinter()">Подключить</button>
+</div>
 <div id="searchResults"></div>
 <div id="printersList" class="printers-list"></div>
 </div>
@@ -111,11 +115,13 @@ input[type="text"],input[type="number"]{width:100%;padding:12px;margin:8px 0;bor
 <script>
 let currentPrinterId=null;
 let printerData={state:'disconnected',extruder_temp:0,extruder_target:0,bed_temp:0,bed_target:0,progress:0,filename:'',print_duration:0};
-document.addEventListener('DOMContentLoaded',function(){loadPrinters();checkConnection();setInterval(pollData,2000);});
+let defaultSubnet='192.168.1.0/24';
+document.addEventListener('DOMContentLoaded',function(){loadDefaultSubnet();loadPrinters();checkConnection();setInterval(pollData,2000);});
+function loadDefaultSubnet(){fetch('/api/discovery?subnet=').then(function(r){return r.json();}).then(function(data){if(data.subnet){defaultSubnet=data.subnet;document.getElementById('subnetInput').value=defaultSubnet;}}).catch(function(e){console.log('Using default subnet:',defaultSubnet);});}
 function loadPrinters(){fetch('/api/printers').then(function(r){return r.json();}).then(function(data){var listDiv=document.getElementById('printersList');if(data.printers&&data.printers.length>0){listDiv.innerHTML='<h3>Подключенные принтеры:</h3>';data.printers.forEach(function(p){var item=document.createElement('div');item.className='printer-item';item.innerHTML='<span>'+p.ip+':'+p.port+' ('+p.state+')</span><button class="btn btn-danger" onclick="removePrinter(\''+p.id+'\')">Удалить</button>';listDiv.appendChild(item);});}else{listDiv.innerHTML='<p>Нет подключенных принтеров</p>';}}).catch(function(e){console.error('Load printers error:',e);});}
 function checkConnection(){fetch('/api/printers/data').then(function(r){return r.json();}).then(function(data){var printers=Object.keys(data);if(printers.length>0){currentPrinterId=printers[0];printerData=Object.assign({},printerData,data[currentPrinterId]);if(printerData.state!=='disconnected'){document.getElementById('setupScreen').classList.add('hidden');document.getElementById('dashboard').classList.remove('hidden');updateUI();}}else{document.getElementById('setupScreen').classList.remove('hidden');}}).catch(function(e){document.getElementById('setupScreen').classList.remove('hidden');});}
 function showSetup(){document.getElementById('dashboard').classList.add('hidden');document.getElementById('setupScreen').classList.remove('hidden');loadPrinters();}
-function searchPrinters(){var resultsDiv=document.getElementById('searchResults');resultsDiv.innerHTML='<div class="spinner"></div>';var ports=document.getElementById('scanPorts').value||'8899';fetch('/api/discovery?subnet=192.168.1.0/24&ports='+encodeURIComponent(ports)).then(function(r){return r.json();}).then(function(data){resultsDiv.innerHTML='';if(data.devices&&data.devices.length>0){data.devices.forEach(function(device){var card=document.createElement('div');card.className='device-card';card.innerHTML='<span>'+device.ip+':'+device.port+'</span><button class="btn btn-primary" onclick="selectPrinter(\''+device.ip+'\','+device.port+')">Выбрать</button>';resultsDiv.appendChild(card);});}else{resultsDiv.innerHTML='<p>Принтеры не найдены. Попробуйте другую подсеть или порты.</p>';}}).catch(function(e){resultsDiv.innerHTML='<p>Ошибка поиска: '+e.message+'</p>';});}
+function searchPrinters(){var resultsDiv=document.getElementById('searchResults');var subnet=document.getElementById('subnetInput').value||defaultSubnet;var ports=document.getElementById('scanPorts').value||'8899';resultsDiv.innerHTML='<div class="spinner"></div>';fetch('/api/discovery?subnet='+encodeURIComponent(subnet)+'&ports='+encodeURIComponent(ports)).then(function(r){return r.json();}).then(function(data){resultsDiv.innerHTML='';if(data.devices&&data.devices.length>0){data.devices.forEach(function(device){var card=document.createElement('div');card.className='device-card';card.innerHTML='<span>'+device.ip+':'+device.port+'</span><button class="btn btn-primary" onclick="selectPrinter(\''+device.ip+'\','+device.port+')">Выбрать</button>';resultsDiv.appendChild(card);});}else{resultsDiv.innerHTML='<p>Принтеры не найдены. Попробуйте другую подсеть или порты.</p>';}}).catch(function(e){resultsDiv.innerHTML='<p>Ошибка поиска: '+e.message+'</p>';});}
 function selectPrinter(ip,port){document.getElementById('printerIp').value=ip;document.getElementById('printerPort').value=port;}
 function connectPrinter(){var ip=document.getElementById('printerIp').value;var port=document.getElementById('printerPort').value;if(!ip){alert('Введите IP адрес');return;}fetch('/api/printers/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_ip:ip,printer_port:parseInt(port)||8899})}).then(function(r){return r.json();}).then(function(result){if(result.status==='ok'){alert('Принтер подключён!');loadPrinters();checkConnection();}else{alert('Ошибка подключения: '+(result.error||'Неизвестная ошибка'));}}).catch(function(e){alert('Ошибка: '+e.message);});}
 function removePrinter(pid){if(!confirm('Удалить принтер?'))return;fetch('/api/printers/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:pid})}).then(function(r){return r.json();}).then(function(result){if(result.status==='ok'){loadPrinters();checkConnection();}else{alert('Ошибка удаления: '+(result.error||'Неизвестная ошибка'));}}).catch(function(e){alert('Ошибка: '+e.message);});}

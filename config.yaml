@@ -1,5 +1,5 @@
 name: "Flashforge Adventurer 5M Control Panel"
-version: "1.2.1"
+version: "1.3.0"
 slug: "flashforge_5m_panel"
 description: "Интеграция и UI-панель для управления 3D-принтером Flashforge Adventurer 5M на базе Klipper/Moonraker"
 url: "https://github.com/setapka/ha-flashforge-addon"
@@ -25,11 +25,13 @@ options:
   printer_ip: ""
   printer_port: 8899
   scan_ports: "8899"
-  log_level: "error"
+  scan_subnet: "192.168.1.0/24"
+  log_level: "list(error|warning|info|debug)"
 schema:
   printer_ip: "str?"
   printer_port: "int"
   scan_ports: "str?"
+  scan_subnet: "str?"
   log_level: "list(error|warning|info|debug)"
 map:
   - ssl:ro
