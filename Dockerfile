@@ -12,8 +12,13 @@ RUN apk add --no-cache \
     curl \
     jq \
     avahi \
+    avahi-autoipd \
+    libavahi-client \
+    libavahi-common \
+    libavahi-compat-libdnssd \
     python3 \
-    py3-pip
+    py3-pip \
+    py3-zeroconf
 
 # Установка Python-зависимостей
 COPY requirements.txt /tmp/
