@@ -9,7 +9,7 @@
 @media(prefers-color-scheme:dark){:root{--card-background-color:#1e1e1e;--background-color:#121212;--text-color:#e0e0e0;--text-secondary-color:#9e9e9e}}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:var(--background-color);color:var(--text-color);padding:16px}
-.container{max-width:900px;margin:0 auto}
+.container{max-width:1200px;margin:0 auto}
 h1{text-align:center;margin-bottom:20px;color:var(--primary-color)}
 .card{background:var(--card-background-color);border-radius:var(--border-radius);padding:20px;margin-bottom:16px;box-shadow:var(--box-shadow)}
 .card h2{margin-bottom:16px;font-size:1.2rem}
@@ -37,140 +37,307 @@ h1{text-align:center;margin-bottom:20px;color:var(--primary-color)}
 .sensor-item{background:var(--background-color);padding:12px;border-radius:8px;text-align:center}
 .sensor-value{font-size:1.5rem;font-weight:bold;color:var(--primary-color)}
 .sensor-label{color:var(--text-secondary-color);font-size:0.9rem}
-.printers-list{margin-top:10px}
-.printer-item{background:var(--card-background-color);border:1px solid var(--text-secondary-color);border-radius:8px;padding:10px;margin:5px 0;display:flex;justify-content:space-between;align-items:center}
+.printers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:16px;margin-top:16px}
+.printer-card{background:var(--card-background-color);border-radius:var(--border-radius);padding:16px;box-shadow:var(--box-shadow);border-left:4px solid var(--primary-color)}
+.printer-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.printer-ip{font-weight:bold;color:var(--primary-color)}
+.printer-filename{font-size:0.85rem;color:var(--text-secondary-color);margin:8px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.temp-display{display:flex;gap:16px;margin:12px 0}
+.temp-item{flex:1;text-align:center;padding:8px;background:var(--background-color);border-radius:8px}
+.temp-value{font-size:1.3rem;font-weight:bold;color:var(--primary-color)}
+.temp-label{font-size:0.8rem;color:var(--text-secondary-color)}
+.temp-target{font-size:0.75rem;color:var(--text-secondary-color)}
+.progress-small{height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden;margin:8px 0}
+.progress-small-fill{height:100%;background:linear-gradient(90deg,var(--primary-color),var(--success-color));transition:width 0.3s}
+.printer-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.printer-actions .btn{padding:8px 16px;font-size:0.85rem;flex:1}
+.setup-section{margin-bottom:20px}
+.input-group{margin:8px 0}
+.input-group input{width:100%;padding:12px;border:1px solid var(--text-secondary-color);border-radius:8px;font-size:1rem;background:var(--card-background-color);color:var(--text-color)}
+.action-buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
 .device-card{background:var(--card-background-color);border:1px solid var(--text-secondary-color);border-radius:8px;padding:12px;margin:8px 0;display:flex;justify-content:space-between;align-items:center}
 .spinner{border:4px solid #f3f3f3;border-top:4px solid var(--primary-color);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:20px auto}
 @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
 .hidden{display:none}
-.temp-bar{height:20px;background:#e0e0e0;border-radius:10px;overflow:hidden;margin-top:8px}
-.temp-fill{height:100%;background:linear-gradient(90deg,var(--primary-color),var(--success-color));transition:width 0.3s}
-input[type="text"],input[type="number"]{width:100%;padding:12px;margin:8px 0;border:1px solid var(--text-secondary-color);border-radius:8px;font-size:1rem;background:var(--card-background-color);color:var(--text-color)}
-.subnet-input{margin-top:10px}
+.refresh-btn{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--primary-color);color:#fff;border:none;box-shadow:0 4px 8px rgba(0,0,0,0.2);cursor:pointer;font-size:1.5rem;display:flex;align-items:center;justify-content:center;transition:all 0.2s;z-index:100}
+.refresh-btn:hover{transform:rotate(90deg);box-shadow:0 6px 12px rgba(0,0,0,0.3)}
+.stats-bar{display:flex;justify-content:space-around;padding:12px;background:var(--card-background-color);border-radius:var(--border-radius);margin-bottom:16px;box-shadow:var(--box-shadow)}
+.stat-item{text-align:center}
+.stat-value{font-size:1.5rem;font-weight:bold;color:var(--primary-color)}
+.stat-label{font-size:0.8rem;color:var(--text-secondary-color)}
 </style>
 </head>
 <body>
 <div class="container">
-<h1>Flashforge Adventurer 5M</h1>
-<div id="setupScreen" class="card">
-<h2>Поиск и подключение принтера</h2>
+<h1>🖨️ Flashforge Adventurer 5M</h1>
+
+<div class="stats-bar" id="statsBar">
+<div class="stat-item">
+<div class="stat-value" id="totalPrinters">0</div>
+<div class="stat-label">Всего принтеров</div>
+</div>
+<div class="stat-item">
+<div class="stat-value" id="printingCount">0</div>
+<div class="stat-label">Печатают</div>
+</div>
+<div class="stat-item">
+<div class="stat-value" id="readyCount">0</div>
+<div class="stat-label">Готовы</div>
+</div>
+<div class="stat-item">
+<div class="stat-value" id="pausedCount">0</div>
+<div class="stat-label">На паузе</div>
+</div>
+</div>
+
+<div class="card setup-section">
+<h2>⚙️ Настройки подключения</h2>
+<div class="input-group">
 <input type="text" id="printerIp" placeholder="IP адрес принтера (например, 192.168.1.100)">
+</div>
+<div class="input-group">
 <input type="number" id="printerPort" placeholder="Порт принтера" value="8899">
+</div>
+<div class="input-group">
 <input type="text" id="scanPorts" placeholder="Порты для сканирования (через запятую)" value="8899">
-<input type="text" id="subnetInput" class="subnet-input" placeholder="Подсеть для поиска (например, 192.168.1.0/24)" value="192.168.1.0/24">
-<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
-<button class="btn btn-primary" onclick="searchPrinters()">Автопоиск</button>
-<button class="btn btn-success" onclick="connectPrinter()">Подключить</button>
+</div>
+<div class="input-group">
+<input type="text" id="subnetInput" placeholder="Подсеть для поиска (например, 192.168.1.0/24)" value="192.168.20.0/24">
+</div>
+<div class="action-buttons">
+<button class="btn btn-primary" onclick="searchPrinters()">🔍 Автопоиск</button>
+<button class="btn btn-success" onclick="connectPrinter()">🔌 Подключить</button>
 </div>
 <div id="searchResults"></div>
-<div id="printersList" class="printers-list"></div>
 </div>
-<div id="dashboard" class="hidden">
+
 <div class="card">
-<h2>Статус принтера</h2>
-<div style="display:flex;justify-content:space-between;align-items:center">
-<span id="printerStatus" class="status-indicator status-disconnected">Нет подключения</span>
-<button class="btn btn-warning" onclick="showSetup()">Настройки</button>
-</div>
-<div id="fileInfo" style="text-align:center;margin-top:10px">Файл: --</div>
-</div>
-<div class="card">
-<h2>Температура</h2>
-<div class="sensor-grid">
-<div class="sensor-item">
-<div class="sensor-value" id="extruderTemp">--</div>
-<div class="sensor-label">Сопло</div>
-<div class="temp-bar"><div class="temp-fill" id="extruderBar" style="width:0%"></div></div>
-<small id="extruderTarget">Цель: --</small>
-</div>
-<div class="sensor-item">
-<div class="sensor-value" id="bedTemp">--</div>
-<div class="sensor-label">Стол</div>
-<div class="temp-bar"><div class="temp-fill" id="bedBar" style="width:0%;background:linear-gradient(90deg,#ff9800,#f44336)"></div></div>
-<small id="bedTarget">Цель: --</small>
+<h2>📡 Принтеры в сети</h2>
+<div id="printersGrid" class="printers-grid">
+<div class="spinner"></div>
 </div>
 </div>
+
+<button class="refresh-btn" onclick="refreshData()" title="Обновить">🔄</button>
 </div>
-<div class="card">
-<h2>Прогресс печати</h2>
-<div class="progress-container">
-<div class="progress-bar"><div class="progress-fill" id="progressBar" style="width:0%"></div></div>
-<div class="progress-text" id="progressText">0%</div>
-<div class="time-info">
-<span>Прошло: <span id="elapsedTime">--:--</span></span>
-<span>Осталось: <span id="remainingTime">--:--</span></span>
-</div>
-</div>
-</div>
-<div class="card">
-<h2>Управление</h2>
-<div class="control-buttons">
-<button class="btn btn-warning" id="pauseBtn" onclick="pausePrint()" disabled>Пауза</button>
-<button class="btn btn-success" id="resumeBtn" onclick="resumePrint()" disabled>Возобновить</button>
-<button class="btn btn-danger" id="cancelBtn" onclick="cancelPrint()" disabled>Отмена</button>
-</div>
-</div>
-</div>
-</div>
+
 <script>
-let currentPrinterId=null;
-let printerData={state:'disconnected',extruder_temp:0,extruder_target:0,bed_temp:0,bed_target:0,progress:0,filename:'',print_duration:0};
-let defaultSubnet='192.168.1.0/24';
-document.addEventListener('DOMContentLoaded',function(){loadDefaultSubnet();loadPrinters();checkConnection();setInterval(pollData,2000);});
-function loadDefaultSubnet(){
-    // Subnet is hardcoded from config.yaml defaults, user can change it manually
+let printersData = {};
+let defaultSubnet = '192.168.20.0/24';
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadDefaultSubnet();
+    refreshData();
+    setInterval(refreshData, 3000);
+});
+
+function loadDefaultSubnet() {
     var configuredSubnet = document.getElementById('subnetInput').value;
-    if(configuredSubnet){
+    if(configuredSubnet) {
         defaultSubnet = configuredSubnet;
-        console.log('Using configured subnet:', defaultSubnet);
     }
 }
-function loadPrinters(){fetch('/api/printers').then(function(r){return r.json();}).then(function(data){var listDiv=document.getElementById('printersList');if(data.printers&&data.printers.length>0){listDiv.innerHTML='<h3>Подключенные принтеры:</h3>';data.printers.forEach(function(p){var item=document.createElement('div');item.className='printer-item';item.innerHTML='<span>'+p.ip+':'+p.port+' ('+p.state+')</span><button class="btn btn-danger" onclick="removePrinter(\''+p.id+'\')">Удалить</button>';listDiv.appendChild(item);});}else{listDiv.innerHTML='<p>Нет подключенных принтеров</p>';}}).catch(function(e){console.error('Load printers error:',e);});}
-function checkConnection(){fetch('/api/printers/data').then(function(r){return r.json();}).then(function(data){var printers=Object.keys(data);if(printers.length>0){currentPrinterId=printers[0];printerData=Object.assign({},printerData,data[currentPrinterId]);if(printerData.state!=='disconnected'){document.getElementById('setupScreen').classList.add('hidden');document.getElementById('dashboard').classList.remove('hidden');updateUI();}}else{document.getElementById('setupScreen').classList.remove('hidden');}}).catch(function(e){document.getElementById('setupScreen').classList.remove('hidden');});}
-function showSetup(){document.getElementById('dashboard').classList.add('hidden');document.getElementById('setupScreen').classList.remove('hidden');loadPrinters();}
-function searchPrinters(){
-    var resultsDiv=document.getElementById('searchResults');
-    var subnet=document.getElementById('subnetInput').value||defaultSubnet;
-    var ports=document.getElementById('scanPorts').value||'8899';
-    console.log('Starting discovery: subnet='+subnet+', ports='+ports);
-    resultsDiv.innerHTML='<div class="spinner"></div>';
+
+function refreshData() {
+    fetch('/api/printers')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            printersData = {};
+            if(data.printers && data.printers.length > 0) {
+                data.printers.forEach(function(p) {
+                    printersData[p.id] = p.data || {};
+                    printersData[p.id].ip = p.ip;
+                    printersData[p.id].port = p.port;
+                    printersData[p.id].id = p.id;
+                });
+            }
+            renderPrintersGrid();
+            updateStats();
+        })
+        .catch(function(e) {
+            console.error('Load printers error:', e);
+            document.getElementById('printersGrid').innerHTML = '<p style="text-align:center;color:var(--error-color)">Ошибка загрузки данных</p>';
+        });
+}
+
+function updateStats() {
+    var total = Object.keys(printersData).length;
+    var printing = 0, ready = 0, paused = 0;
     
-    fetch('/api/discovery?subnet='+encodeURIComponent(subnet)+'&ports='+encodeURIComponent(ports))
-        .then(function(r){
-            if(!r.ok){
-                throw new Error('HTTP '+r.status);
+    Object.keys(printersData).forEach(function(id) {
+        var state = printersData[id].state || 'disconnected';
+        if(state === 'printing') printing++;
+        else if(state === 'ready') ready++;
+        else if(state === 'paused') paused++;
+    });
+    
+    document.getElementById('totalPrinters').textContent = total;
+    document.getElementById('printingCount').textContent = printing;
+    document.getElementById('readyCount').textContent = ready;
+    document.getElementById('pausedCount').textContent = paused;
+}
+
+function renderPrintersGrid() {
+    var gridDiv = document.getElementById('printersGrid');
+    var ids = Object.keys(printersData);
+    
+    if(ids.length === 0) {
+        gridDiv.innerHTML = '<p style="text-align:center;color:var(--text-secondary-color)">Нет подключенных принтеров. Используйте автопоиск или подключите вручную.</p>';
+        return;
+    }
+    
+    gridDiv.innerHTML = '';
+    
+    ids.forEach(function(id) {
+        var data = printersData[id];
+        var card = document.createElement('div');
+        card.className = 'printer-card';
+        
+        var statusClass = 'status-' + (data.state || 'disconnected');
+        var statusText = translateStatus(data.state);
+        
+        var extruderTemp = (data.extruder_temp || 0).toFixed(1);
+        var extruderTarget = (data.extruder_target || 0).toFixed(0);
+        var bedTemp = (data.bed_temp || 0).toFixed(1);
+        var bedTarget = (data.bed_target || 0).toFixed(0);
+        
+        var progress = data.progress || 0;
+        var filename = data.filename || '---';
+        
+        // Cut filename to last 30 chars
+        if(filename.length > 30) filename = '...' + filename.slice(-30);
+        
+        var borderColors = {'disconnected':'#9e9e9e','ready':'#4caf50','printing':'#03a9f4','paused':'#ff9800','complete':'#4caf50','error':'#f44336'};
+        card.style.borderLeftColor = borderColors[data.state] || '#03a9f4';
+        
+        card.innerHTML = 
+            '<div class="printer-header">' +
+                '<span class="printer-ip">' + (data.ip || id) + '</span>' +
+                '<span class="status-indicator ' + statusClass + '">' + statusText + '</span>' +
+            '</div>' +
+            '<div class="printer-filename" title="' + (data.filename || '') + '">📄 ' + filename + '</div>' +
+            '<div class="temp-display">' +
+                '<div class="temp-item">' +
+                    '<div class="temp-value">' + extruderTemp + '°C</div>' +
+                    '<div class="temp-label">Сопло</div>' +
+                    '<div class="temp-target">Цель: ' + extruderTarget + '°C</div>' +
+                '</div>' +
+                '<div class="temp-item">' +
+                    '<div class="temp-value">' + bedTemp + '°C</div>' +
+                    '<div class="temp-label">Стол</div>' +
+                    '<div class="temp-target">Цель: ' + bedTarget + '°C</div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="progress-small">' +
+                '<div class="progress-small-fill" style="width:' + progress + '%"></div>' +
+            '</div>' +
+            '<div style="text-align:center;font-size:0.85rem;color:var(--text-secondary-color)">' + progress.toFixed(1) + '%</div>' +
+            '<div class="printer-actions">' +
+                '<button class="btn btn-warning" onclick="pausePrint(\'' + id + '\')" ' + (data.state !== 'printing' ? 'disabled' : '') + '>⏸ Пауза</button>' +
+                '<button class="btn btn-success" onclick="resumePrint(\'' + id + '\')" ' + (data.state !== 'paused' ? 'disabled' : '') + '>▶ Старт</button>' +
+                '<button class="btn btn-danger" onclick="cancelPrint(\'' + id + '\')" ' + ((data.state !== 'printing' && data.state !== 'paused') ? 'disabled' : '') + '>✖ Отмена</button>' +
+            '</div>';
+        
+        gridDiv.appendChild(card);
+    });
+}
+
+function translateStatus(state) {
+    var s = {
+        'disconnected': 'Нет подключения',
+        'connecting': 'Подключение...',
+        'ready': 'Готов',
+        'printing': 'Печать',
+        'paused': 'Пауза',
+        'complete': 'Завершено',
+        'cancelled': 'Отменено',
+        'error': 'Ошибка'
+    };
+    return s[state] || state;
+}
+
+function searchPrinters() {
+    var resultsDiv = document.getElementById('searchResults');
+    var subnet = document.getElementById('subnetInput').value || defaultSubnet;
+    var ports = document.getElementById('scanPorts').value || '8899';
+    
+    resultsDiv.innerHTML = '<div class="spinner"></div><p style="text-align:center">Сканирование сети...</p>';
+    
+    fetch('/api/discovery?subnet=' + encodeURIComponent(subnet) + '&ports=' + encodeURIComponent(ports))
+        .then(function(r) {
+            if(!r.ok) {
+                throw new Error('HTTP ' + r.status);
             }
             return r.json();
         })
-        .then(function(data){
-            console.log('Discovery result:', data);
-            resultsDiv.innerHTML='';
-            if(data.devices&&data.devices.length>0){
-                data.devices.forEach(function(device){
-                    var card=document.createElement('div');
-                    card.className='device-card';
-                    card.innerHTML='<span>'+device.ip+':'+device.port+' ('+(device.type||'unknown')+')</span><button class="btn btn-primary" onclick="selectPrinter(\''+device.ip+'\','+device.port+')">Выбрать</button>';
+        .then(function(data) {
+            resultsDiv.innerHTML = '';
+            if(data.devices && data.devices.length > 0) {
+                data.devices.forEach(function(device) {
+                    var card = document.createElement('div');
+                    card.className = 'device-card';
+                    card.innerHTML = '<span>' + device.ip + ':' + device.port + '</span>' +
+                        '<button class="btn btn-primary" onclick="selectPrinter(\'' + device.ip + '\',' + device.port + ')">Выбрать</button>';
                     resultsDiv.appendChild(card);
                 });
-            }else{
-                resultsDiv.innerHTML='<p>Принтеры не найдены. Попробуйте другую подсеть или порты.</p>';
+            } else {
+                resultsDiv.innerHTML = '<p style="text-align:center;color:var(--text-secondary-color)">Принтеры не найдены</p>';
             }
         })
-        .catch(function(e){
-            console.error('Discovery error:', e);
-            resultsDiv.innerHTML='<p>Ошибка поиска: '+e.message+'</p>';
+        .catch(function(e) {
+            resultsDiv.innerHTML = '<p style="text-align:center;color:var(--error-color)">Ошибка: ' + e.message + '</p>';
         });
 }
-function selectPrinter(ip,port){document.getElementById('printerIp').value=ip;document.getElementById('printerPort').value=port;}
-function connectPrinter(){var ip=document.getElementById('printerIp').value;var port=document.getElementById('printerPort').value;if(!ip){alert('Введите IP адрес');return;}fetch('/api/printers/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_ip:ip,printer_port:parseInt(port)||8899})}).then(function(r){return r.json();}).then(function(result){if(result.status==='ok'){alert('Принтер подключён!');loadPrinters();checkConnection();}else{alert('Ошибка подключения: '+(result.error||'Неизвестная ошибка'));}}).catch(function(e){alert('Ошибка: '+e.message);});}
-function removePrinter(pid){if(!confirm('Удалить принтер?'))return;fetch('/api/printers/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:pid})}).then(function(r){return r.json();}).then(function(result){if(result.status==='ok'){loadPrinters();checkConnection();}else{alert('Ошибка удаления: '+(result.error||'Неизвестная ошибка'));}}).catch(function(e){alert('Ошибка: '+e.message);});}
-function updateUI(){var statusEl=document.getElementById('printerStatus');statusEl.className='status-indicator status-'+printerData.state;statusEl.textContent=translateStatus(printerData.state);document.getElementById('fileInfo').textContent='Файл: '+(printerData.filename||'--');document.getElementById('extruderTemp').textContent=printerData.extruder_temp.toFixed(1)+' C';document.getElementById('extruderTarget').textContent='Цель: '+(printerData.extruder_target||'--')+' C';var extruderPercent=printerData.extruder_target>0?(printerData.extruder_temp/printerData.extruder_target)*100:0;document.getElementById('extruderBar').style.width=Math.min(extruderPercent,100)+'%';document.getElementById('bedTemp').textContent=printerData.bed_temp.toFixed(1)+' C';document.getElementById('bedTarget').textContent='Цель: '+(printerData.bed_target||'--')+' C';var bedPercent=printerData.bed_target>0?(printerData.bed_temp/printerData.bed_target)*100:0;document.getElementById('bedBar').style.width=Math.min(bedPercent,100)+'%';var progress=printerData.progress||0;document.getElementById('progressBar').style.width=progress+'%';document.getElementById('progressText').textContent=progress.toFixed(1)+'%';var elapsed=printerData.print_duration||0;document.getElementById('elapsedTime').textContent=formatTime(elapsed);var remaining=progress>0?(elapsed/progress*(100-progress)):0;document.getElementById('remainingTime').textContent=formatTime(remaining);var pauseBtn=document.getElementById('pauseBtn');var resumeBtn=document.getElementById('resumeBtn');var cancelBtn=document.getElementById('cancelBtn');if(printerData.state==='printing'){pauseBtn.disabled=false;resumeBtn.disabled=true;cancelBtn.disabled=false;}else if(printerData.state==='paused'){pauseBtn.disabled=true;resumeBtn.disabled=false;cancelBtn.disabled=false;}else{pauseBtn.disabled=true;resumeBtn.disabled=true;cancelBtn.disabled=true;}}
-function translateStatus(state){var s={'disconnected':'Нет подключения','ready':'Готов','printing':'Печать','paused':'Пауза','complete':'Завершено','cancelled':'Отменено','error':'Ошибка'};return s[state]||state;}
-function formatTime(seconds){var h=Math.floor(seconds/3600);var m=Math.floor((seconds%3600)/60);var s=Math.floor(seconds%60);return (h>0?h+':':'')+(m<10&&h>0?'0':'')+m+':'+(s<10?'0':'')+s;}
-function pollData(){if(!currentPrinterId)return;fetch('/api/printers/data').then(function(r){return r.json();}).then(function(data){if(data[currentPrinterId]){printerData=Object.assign({},printerData,data[currentPrinterId]);updateUI();}}).catch(function(e){console.error('Poll error:',e);});}
-function pausePrint(){if(!currentPrinterId)return;fetch('/api/printers/'+currentPrinterId+'/pause',{method:'POST'}).then(function(){pollData();}).catch(function(e){alert('Ошибка: '+e.message);});}
-function resumePrint(){if(!currentPrinterId)return;fetch('/api/printers/'+currentPrinterId+'/resume',{method:'POST'}).then(function(){pollData();}).catch(function(e){alert('Ошибка: '+e.message);});}
-function cancelPrint(){if(!currentPrinterId)return;if(confirm('Отменить печать?')){fetch('/api/printers/'+currentPrinterId+'/cancel',{method:'POST'}).then(function(){pollData();}).catch(function(e){alert('Ошибка: '+e.message);});}}
-</script>
-</body>
-</html>
+
+function selectPrinter(ip, port) {
+    document.getElementById('printerIp').value = ip;
+    document.getElementById('printerPort').value = port;
+}
+
+function connectPrinter() {
+    var ip = document.getElementById('printerIp').value;
+    var port = document.getElementById('printerPort').value;
+    
+    if(!ip) {
+        alert('Введите IP адрес');
+        return;
+    }
+    
+    fetch('/api/printers/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({printer_ip: ip, printer_port: parseInt(port) || 8899})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+        if(result.status === 'ok') {
+            alert('Принтер подключён!');
+            refreshData();
+        } else {
+            alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(function(e) {
+        alert('Ошибка: ' + e.message);
+    });
+}
+
+function pausePrint(id) {
+    fetch('/api/printers/' + id + '/pause', {method: 'POST'})
+        .then(function() { refreshData(); })
+        .catch(function(e) { alert('Ошибка: ' + e.message); });
+}
+
+function resumePrint(id) {
+    fetch('/api/printers/' + id + '/resume', {method: 'POST'})
+        .then(function() { refreshData(); })
+        .catch(function(e) { alert('Ошибка: ' + e.message); });
+}
+
+function cancelPrint(id) {
+    if(confirm('Отменить печать?')) {
+        fetch('/api/printers/' + id + '/cancel', {method: 'POST'})
+            .then(function() { refreshData(); })
+            .catch(function(e) { alert('Ошибка: ' + e.message); });
+    }
+}
