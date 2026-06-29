@@ -33,7 +33,9 @@ var fsEl=document.getElementById('fs-'+id),dsEl=document.getElementById('ds-'+id
 if(fsEl)fsEl.textContent=(fs==='loaded'?'✅':fs==='runout'?'⚠️':fs);if(dsEl)dsEl.textContent=(ds==='closed'?'✅':ds==='open'?'⚠️':ds);
 if(tvocEl)tvocEl.textContent=(d.tvoc_value||0)+' mg/m³';if(fanEl)fanEl.textContent=(d.fan_speed||0)+'%';
 var hdr=card.querySelector('.p-ip'),sts=card.querySelector('.status');
-if(hdr)hdr.textContent=d.machine_name||d.ip||id;if(sts){var sc='st-'+(d.state||'disconnected');sts.className='status '+sc;sts.textContent=tr(d.state);}}
+if(hdr)hdr.textContent=d.machine_name||d.ip||id;if(sts){var sc='st-'+(d.state||'disconnected');sts.className='status '+sc;sts.textContent=tr(d.state);}
+// Update stats
+stats();}
 function search(){var r=document.getElementById('results'),s=document.getElementById('subnet').value||subnet,p=document.getElementById('scanports').value||'8899';r.innerHTML='<div class="spinner"></div>';
 fetch('./api/discovery?subnet='+encodeURIComponent(s)+'&ports='+encodeURIComponent(p)).then(function(x){return x.json();}).then(function(d){r.innerHTML='';if(d.devices&&d.devices.length>0){d.devices.forEach(function(dev){var c=document.createElement('div'),i=dev.info||{};c.className='dev-c';c.innerHTML='<div class="dev-i"><span>'+(dev.ip||'')+':'+(dev.port||'')+'</span><span class="status st-ready">'+(i.status||'')+'</span></div><div class="dev-d">Machine: '+(i.machine_name||'N/A')+' | SN: '+(i.serial_number||'N/A')+'</div><button class="btn btn-p" onclick="sel(\''+(dev.ip||'')+'\','+(dev.port||8899)+')">Connect</button>';r.appendChild(c);});}else{r.innerHTML='<div class="empty">Не найдено</div>';}}).catch(function(e){r.innerHTML='<div class="empty">Error</div>';});}
 function sel(ip,port){document.getElementById('ip').value=ip;document.getElementById('port').value=port;}

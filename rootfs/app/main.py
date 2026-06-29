@@ -589,6 +589,7 @@ class FlashforgeAddon:
     
     async def _poll_printers(self):
         poll_count = 0
+        last_states = {}
         while True:
             poll_count += 1
             connected_count = sum(1 for p in self.printers.values() if p.is_connected)
@@ -596,7 +597,13 @@ class FlashforgeAddon:
             for printer in self.printers.values():
                 if printer.is_connected:
                     try:
+                        old_data = dict(printer.printer_data)
                         await printer.get_status()
+                        new_data = printer.printer_data
+                        # Check if data changed
+                        if old_data != new_data:
+                            await self._broadcast_update(printer.printer_id, new_data)
+                            last_states[printer.printer_id] = new_data
                     except Exception as e:
                         logger.debug(f"Poll error for {printer.printer_id}: {type(e).__name__}: {e}")
             await asyncio.sleep(2)
