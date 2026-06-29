@@ -7,167 +7,23 @@
 <style>
 :root{--primary:#03a9f4;--bg:#f5f7fa;--card:#fff;--text:#333;--text2:#666;--ok:#4caf50;--warn:#ff9800;--err:#f44336}
 @media(prefers-color-scheme:dark){:root{--card:#1e1e1e;--bg:#121212;--text:#e0e0e0;--text2:#9e9e9e}}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);padding:16px}
-.container{max-width:1400px;margin:0 auto}
-h1{text-align:center;margin-bottom:24px;color:var(--primary);font-size:1.8rem}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px;background:var(--card);border-radius:12px;margin-bottom:20px}
-.stat{text-align:center;padding:12px;background:var(--bg);border-radius:8px}
-.stat-val{font-size:1.8rem;font-weight:700;color:var(--primary)}
-.stat-lbl{font-size:0.8rem;color:var(--text2)}
-.card{background:var(--card);border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 4px 6px rgba(0,0,0,0.08)}
-.card h2{margin-bottom:16px;font-size:1.2rem}
-.btn{padding:10px 20px;border:none;border-radius:8px;font-size:0.95rem;cursor:pointer}
-.btn:disabled{opacity:0.5;cursor:not-allowed}
-.btn-p{background:var(--primary);color:#fff}
-.btn-s{background:var(--ok);color:#fff}
-.btn-w{background:var(--warn);color:#fff}
-.btn-d{background:var(--err);color:#fff}
-.input-grp{margin:12px 0}
-.input-grp label{display:block;margin-bottom:6px;color:var(--text2);font-size:0.9rem}
-.input-grp input{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:1rem;background:var(--card);color:var(--text)}
-.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:16px}
-.printer{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.08);border-left:4px solid var(--primary)}
-.printer.err{border-left-color:var(--err);animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
-.p-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg)}
-.p-ip{font-weight:600;color:var(--primary)}
-.status{padding:4px 12px;border-radius:16px;font-size:0.8rem;font-weight:600}
-.st-disconn{background:#9e9e9e;color:#fff}
-.st-ready{background:var(--ok);color:#fff}
-.st-print{background:var(--primary);color:#fff}
-.st-pause{background:var(--warn);color:#fff}
-.st-err{background:var(--err);color:#fff}
-.p-vid{width:100%;aspect-ratio:16/9;background:#000;position:relative}
-.p-vid img{width:100%;height:100%;object-fit:cover}
-.vid-ph{display:flex;align-items:center;justify-content:center;height:100%;color:#888;flex-direction:column}
-.p-info{padding:16px}
-.creds{font-size:0.75rem;color:var(--text2);padding:10px;background:var(--bg);border-radius:8px;margin:8px 0;display:flex;gap:10px;flex-wrap:wrap}
-.auth-st{padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;margin-left:auto}
-.auth-ok{background:var(--ok);color:#fff}
-.auth-no{background:#e0e0e0;color:#666}
-.fname{font-size:0.8rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:8px 0}
-.temps{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
-.temp{padding:10px;background:var(--bg);border-radius:8px;text-align:center}
-.temp-v{font-size:1.3rem;font-weight:700;color:var(--primary)}
-.temp-l{font-size:0.7rem;color:var(--text2)}
-.temp-t{font-size:0.65rem;color:var(--text2)}
-.prog-c{margin:10px 0}
-.prog-b{height:16px;background:#e0e0e0;border-radius:8px;overflow:hidden}
-.prog-f{height:100%;background:linear-gradient(90deg,var(--primary),var(--ok));transition:width 0.3s}
-.prog-t{text-align:center;font-size:0.8rem;color:var(--text2);margin-top:4px}
-.p-meta{display:flex;justify-content:space-between;padding:6px 0;font-size:0.8rem;color:var(--text2)}
-.p-act{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px;border-top:1px solid #e0e0e0}
-.p-act .btn{padding:8px;font-size:0.8rem}
-.tabs{display:flex;border-bottom:1px solid #e0e0e0}
-.tab{flex:1;padding:10px;text-align:center;cursor:pointer;background:var(--bg);border:none;color:var(--text);font-size:0.8rem}
-.tab:first-child{border-radius:8px 0 0 0}
-.tab:last-child{border-radius:0 8px 0 0}
-.tab.active{background:var(--primary);color:#fff}
-.tab-c{display:none;padding:12px}
-.tab-c.active{display:block}
-.s-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e0e0e0}
-.s-lbl{color:var(--text2)}
-.s-val{font-weight:600}
-.spinner{border:4px solid #e0e0e0;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:30px auto}
-@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-.refresh{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;box-shadow:0 4px 10px rgba(0,0,0,0.2);cursor:pointer;font-size:1.3rem;transition:all 0.3s;z-index:100}
-.refresh:hover{transform:rotate(90deg)}
-.empty{text-align:center;padding:30px;color:var(--text2)}
-.dev-c{background:var(--card);border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin:10px 0}
-.dev-i{display:flex;justify-content:space-between;align-items:center}
-.dev-d{font-size:0.8rem;color:var(--text2);margin-top:6px}
-@media(max-width:700px){body{padding:10px}.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.actions{flex-direction:column}.actions .btn{width:100%}.p-act{grid-template-columns:1fr}}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);padding:16px}.container{max-width:1400px;margin:0 auto}h1{text-align:center;margin-bottom:24px;color:var(--primary);font-size:1.8rem}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px;background:var(--card);border-radius:12px;margin-bottom:20px}.stat{text-align:center;padding:12px;background:var(--bg);border-radius:8px}.stat-val{font-size:1.8rem;font-weight:700;color:var(--primary)}.stat-lbl{font-size:0.8rem;color:var(--text2)}.card{background:var(--card);border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 4px 6px rgba(0,0,0,0.08)}.card h2{margin-bottom:16px;font-size:1.2rem}.btn{padding:10px 20px;border:none;border-radius:8px;font-size:0.95rem;cursor:pointer}.btn:disabled{opacity:0.5;cursor:not-allowed}.btn-p{background:var(--primary);color:#fff}.btn-s{background:var(--ok);color:#fff}.btn-w{background:var(--warn);color:#fff}.btn-d{background:var(--err);color:#fff}.input-grp{margin:12px 0}.input-grp label{display:block;margin-bottom:6px;color:var(--text2);font-size:0.9rem}.input-grp input{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:1rem;background:var(--card);color:var(--text)}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:16px}.printer{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.08);border-left:4px solid var(--primary)}.printer.err{border-left-color:var(--err);animation:pulse 1s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}.p-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg)}.p-ip{font-weight:600;color:var(--primary)}.status{padding:4px 12px;border-radius:16px;font-size:0.8rem;font-weight:600}.st-disconn{background:#9e9e9e;color:#fff}.st-ready{background:var(--ok);color:#fff}.st-print{background:var(--primary);color:#fff}.st-pause{background:var(--warn);color:#fff}.st-err{background:var(--err);color:#fff}.p-vid{width:100%;aspect-ratio:16/9;background:#000;position:relative}.p-vid img{width:100%;height:100%;object-fit:cover}.vid-ph{display:flex;align-items:center;justify-content:center;height:100%;color:#888;flex-direction:column}.tabs{display:flex;border-bottom:1px solid #e0e0e0}.tab{flex:1;padding:10px;text-align:center;cursor:pointer;background:var(--bg);border:none;color:var(--text);font-size:0.8rem}.tab.active{background:var(--primary);color:#fff}.tab-c{display:none;padding:12px}.tab-c.active{display:block}.s-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e0e0e0}.s-lbl{color:var(--text2)}.s-val{font-weight:600}.spinner{border:4px solid #e0e0e0;border-top:4px solid var(--primary);border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:30px auto}@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}.refresh{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;box-shadow:0 4px 10px rgba(0,0,0,0.2);cursor:pointer;font-size:1.3rem;transition:all 0.3s;z-index:100}.refresh:hover{transform:rotate(90deg)}.empty{text-align:center;padding:30px;color:var(--text2)}.dev-c{background:var(--card);border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin:10px 0}.dev-i{display:flex;justify-content:space-between;align-items:center}.dev-d{font-size:0.8rem;color:var(--text2);margin-top:6px}.creds{font-size:0.75rem;color:var(--text2);padding:10px;background:var(--bg);border-radius:8px;margin:8px 0;display:flex;gap:10px;flex-wrap:wrap}.auth-st{padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:600}.auth-ok{background:var(--ok);color:#fff}.auth-no{background:#e0e0e0;color:#666}.fname{font-size:0.8rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:8px 0}.temps{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}.temp{padding:10px;background:var(--bg);border-radius:8px;text-align:center}.temp-v{font-size:1.3rem;font-weight:700;color:var(--primary)}.temp-l{font-size:0.7rem;color:var(--text2)}.temp-t{font-size:0.65rem;color:var(--text2)}.prog-c{margin:10px 0}.prog-b{height:16px;background:#e0e0e0;border-radius:8px;overflow:hidden}.prog-f{height:100%;background:linear-gradient(90deg,var(--primary),var(--ok));transition:width 0.3s}.prog-t{text-align:center;font-size:0.8rem;color:var(--text2);margin-top:4px}.p-meta{display:flex;justify-content:space-between;padding:6px 0;font-size:0.8rem;color:var(--text2)}.p-act{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px;border-top:1px solid #e0e0e0}.p-act .btn{padding:8px;font-size:0.8rem}@media(max-width:700px){body{padding:10px}.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.actions{flex-direction:column}.actions .btn{width:100%}.p-act{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="container">
 <h1>🖨️ Flashforge Adventurer 5M</h1>
-<div class="stats">
-<div class="stat"><div class="stat-val" id="total">0</div><div class="stat-lbl">Всего</div></div>
-<div class="stat"><div class="stat-val" id="printing">0</div><div class="stat-lbl">Печать</div></div>
-<div class="stat"><div class="stat-val" id="ready">0</div><div class="stat-lbl">Готовы</div></div>
-<div class="stat"><div class="stat-val" id="paused">0</div><div class="stat-lbl">Пауза</div></div>
-</div>
-<div class="card">
-<h2>⚙️ Настройки</h2>
+<div class="stats"><div class="stat"><div class="stat-val" id="total">0</div><div class="stat-lbl">Всего</div></div><div class="stat"><div class="stat-val" id="printing">0</div><div class="stat-lbl">Печать</div></div><div class="stat"><div class="stat-val" id="ready">0</div><div class="stat-lbl">Готовы</div></div><div class="stat"><div class="stat-val" id="paused">0</div><div class="stat-lbl">Пауза</div></div></div>
+<div class="card"><h2>⚙️ Настройки</h2>
 <div class="input-grp"><label>IP адрес принтера</label><input type="text" id="ip" placeholder="192.168.1.100"></div>
 <div class="input-grp"><label>Порт</label><input type="number" id="port" value="8899"></div>
 <div class="input-grp"><label>Порты для сканирования</label><input type="text" id="scanports" value="8899"></div>
 <div class="input-grp"><label>Подсеть</label><input type="text" id="subnet" value="192.168.20.0/24"></div>
-<div class="actions">
-<button class="btn btn-p" onclick="search()">🔍 Автопоиск</button>
-<button class="btn btn-s" onclick="connect()">🔌 Подключить</button>
-</div>
-<div id="results"></div>
-</div>
-<div class="card">
-<h2>🖨️ Принтеры</h2>
-<div id="grid" class="grid"><div class="spinner"></div></div>
-</div>
+<div class="actions"><button class="btn btn-p" onclick="search()">🔍 Автопоиск</button><button class="btn btn-s" onclick="connect()">🔌 Подключить</button></div>
+<div id="results"></div></div>
+<div class="card"><h2>🖨️ Принтеры</h2><div id="grid" class="grid"><div class="spinner"></div></div></div>
 <button class="refresh" onclick="refresh()">⟳</button>
 </div>
-<script>
-var data={},subnet='192.168.20.0/24',audio=null;
-window.onload=function(){var s=document.getElementById('subnet').value;if(s)subnet=s;refresh();setInterval(refresh,3000);};
-function refresh(){
-fetch('./api/printers').then(function(r){return r.json();}).then(function(d){
-data={};if(d.printers&&d.printers.length>0){d.printers.forEach(function(p){data[p.id]=p.data||{};data[p.id].ip=p.ip;data[p.id].port=p.port;data[p.id].id=p.id;});}
-render();stats();
-}).catch(function(e){console.error(e);document.getElementById('grid').innerHTML='<div class="empty">Ошибка</div>';});
-}
-function stats(){
-var t=0,pr=0,r=0,pa=0,err=false;
-Object.keys(data).forEach(function(id){t++;var s=data[id].state||'disconnected';if(s==='printing')pr++;else if(s==='ready')r++;else if(s==='paused')pa++;else if(s==='error')err=true;});
-document.getElementById('total').textContent=t;document.getElementById('printing').textContent=pr;document.getElementById('ready').textContent=r;document.getElementById('paused').textContent=pa;
-if(err)play();
-}
-function play(){try{audio=new(window.AudioContext||window.webkitAudioContext)();for(var i=0;i<3;i++){setTimeout(function(){var o=audio.createOscillator(),g=audio.createGain();o.connect(g);g.connect(audio.destination);o.frequency.value=800;o.type='square';g.gain.value=0.3;o.start();setTimeout(function(){o.stop();},200);},i*400);}}catch(e){}}
-function fmt(sec){if(!sec||sec<0)return'00:00';var h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;if(h>0)return h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');}
-function tr(s){var t={'disconnected':'Нет подключения','connecting':'Подключение...','ready':'Готов','printing':'Печать','paused':'Пауза','complete':'Завершено','cancelled':'Отменено','error':'Ошибка'};return t[s]||s;}
-function render(){
-var g=document.getElementById('grid'),ids=Object.keys(data);
-if(ids.length===0){g.innerHTML='<div class="empty">Нет принтеров</div>';return;}
-g.innerHTML='';
-ids.forEach(function(id){var d=data[id],card=document.createElement('div'),sc='st-'+(d.state||'disconnected'),st=tr(d.state),et=(d.extruder_temp||0).toFixed(1),ett=(d.extruder_target||0).toFixed(0),bt=(d.bed_temp||0).toFixed(1),btt=(d.bed_target||0).toFixed(0),prg=d.progress||0,fn=d.filename||'---',cl=d.current_layer||0,tl=d.total_layers||0,eta=fmt(d.remaining_time||0),el=fmt(d.elapsed_time||0),sn=d.serial_number||'N/A',cc=d.check_code||'N/A',ha=d.http_authenticated||false,ac=ha?'auth-ok':'auth-no',at=ha?'HTTP OK':'HTTP NO',ca=d.camera_available||false,cu=d.camera_stream_url||'',fs=d.filament_status||'unknown',ds=d.door_status||'unknown';
-card.className='printer'+(d.state==='error'?' err':'');
-var h='<div class="p-hdr"><span class="p-ip">'+(d.machine_name||d.ip||id)+'</span><span class="status '+sc+'">'+st+'</span></div>';
-h+='<div class="p-vid">';if(ca&&cu){h+='<img src="'+cu+'" alt="Cam">';}else{h+='<div class="vid-ph">📷 Камера не подключена<br><small>(Camera Kit для 5M)</small></div>';}h+='</div>';
-h+='<div class="tabs"><button class="tab active" onclick="sw(this,\'m\',\''+id+'\')">Основное</button><button class="tab" onclick="sw(this,\'s\',\''+id+'\')">Датчики</button><button class="tab" onclick="sw(this,\'c\',\''+id+'\')">Инфо</button></div>';
-h+='<div class="tab-c active" id="m-'+id+'"><div class="creds"><span>SN:'+sn+'</span><span>CC:'+cc+'</span><span class="auth-st '+ac+'">'+at+'</span></div>';
-h+='<div class="fname">'+fn+'</div><div class="temps">';
-h+='<div class="temp"><div class="temp-v">'+et+'°C</div><div class="temp-l">Экструдер</div><div class="temp-t">Цель:'+ett+'°C</div></div>';
-h+='<div class="temp"><div class="temp-v">'+bt+'°C</div><div class="temp-l">Стол</div><div class="temp-t">Цель:'+btt+'°C</div></div></div>';
-h+='<div class="prog-c"><div class="prog-b"><div class="prog-f" style="width:'+prg.toFixed(1)+'%"></div></div><div class="prog-t">'+prg.toFixed(1)+'%</div></div>';
-h+='<div class="p-meta"><span>Слой:'+cl+'/'+tl+'</span><span>ETA:'+eta+'</span><span>Время:'+el+'</span></div></div>';
-h+='<div class="tab-c" id="s-'+id+'">';
-h+='<div class="s-row"><span class="s-lbl">Экструдер</span><span class="s-val">'+et+'/'+ett+'°C</span></div>';
-h+='<div class="s-row"><span class="s-lbl">Стол</span><span class="s-val">'+bt+'/'+btt+'°C</span></div>';
-h+='<div class="s-row"><span class="s-lbl">Филамент</span><span class="s-val">'+(fs==='loaded'?'✅':fs==='runout'?'⚠️':fs)+'</span></div>';
-h+='<div class="s-row"><span class="s-lbl">Дверь</span><span class="s-val">'+(ds==='closed'?'✅':ds==='open'?'⚠️':ds)+'</span></div>';
-h+='<div class="s-row"><span class="s-lbl">TVOC</span><span class="s-val">'+(d.tvoc_value||0)+' mg/m³</span></div>';
-h+='<div class="s-row"><span class="s-lbl">Вентилятор</span><span class="s-val">'+(d.fan_speed||0)+'%</span></div></div>';
-h+='<div class="tab-c" id="c-'+id+'">';
-h+='<div class="s-row"><span class="s-lbl">IP адрес</span><span class="s-val">'+(d.ip||'')+'</span></div>';
-h+='<div class="s-row"><span class="s-lbl">Порт</span><span class="s-val">'+(d.port||8899)+'</span></div>';
-h+='<div class="s-row"><span class="s-lbl">Серийный номер</span><span class="s-val">'+sn+'</span></div>';
-h+='<div class="s-row"><span class="s-lbl">Check Code</span><span class="s-val">'+cc+'</span></div></div>';
-h+='<div class="p-act">';
-h+='<button class="btn btn-w" onclick="pause(\''+id+'\')" '+(d.state!=='printing'?'disabled':'')+'>Pause</button>';
-h+='<button class="btn btn-s" onclick="resume(\''+id+'\')" '+(d.state!=='paused'?'disabled':'')+'>Resume</button>';
-h+='<button class="btn btn-d" onclick="cancel(\''+id+'\')" '+((d.state!=='printing'&&d.state!=='paused')?'disabled':'')+'>Cancel</button></div>';
-card.innerHTML=h;g.appendChild(card);});
-}
-function sw(b,t,id){var p=b.parentElement,tabs=p.querySelectorAll('.tab'),cs=p.parentElement.querySelectorAll('.tab-c');tabs.forEach(function(x){x.classList.remove('active');});b.classList.add('active');cs.forEach(function(x){x.classList.remove('active');});document.getElementById(t+'-'+id).classList.add('active');}
-function search(){var r=document.getElementById('results'),s=document.getElementById('subnet').value||subnet,p=document.getElementById('scanports').value||'8899';r.innerHTML='<div class="spinner"></div>';
-fetch('./api/discovery?subnet='+encodeURIComponent(s)+'&ports='+encodeURIComponent(p)).then(function(x){return x.json();}).then(function(d){r.innerHTML='';if(d.devices&&d.devices.length>0){d.devices.forEach(function(dev){var c=document.createElement('div'),i=dev.info||{};c.className='dev-c';c.innerHTML='<div class="dev-i"><span>'+(dev.ip||'')+':'+(dev.port||'')+'</span><span class="status st-ready">'+(i.status||'')+'</span></div><div class="dev-d">Machine: '+(i.machine_name||'N/A')+' | SN: '+(i.serial_number||'N/A')+'</div><button class="btn btn-p" onclick="sel(\''+(dev.ip||'')+'\','+(dev.port||8899)+')">Connect</button>';r.appendChild(c);});}else{r.innerHTML='<div class="empty">Не найдено</div>';}}).catch(function(e){r.innerHTML='<div class="empty">Error</div>';});}
-function sel(ip,port){document.getElementById('ip').value=ip;document.getElementById('port').value=port;}
-function connect(){var ip=document.getElementById('ip').value,port=document.getElementById('port').value;if(!ip){alert('Введите IP');return;}
-fetch('./api/printers/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_ip:ip,printer_port:parseInt(port)||8899})}).then(function(x){return x.json();}).then(function(r){if(r.status==='ok'||r.status==='connected_false'){alert('OK: '+(r.connected?'Подключен':'Нет подключения'));refresh();}else{alert('Error: '+(r.error||''));}}).catch(function(e){alert('Error: '+e.message);});}
-function pause(id){fetch('./api/printers/'+id+'/pause',{method:'POST'}).then(function(){refresh();});}
-function resume(id){fetch('./api/printers/'+id+'/resume',{method:'POST'}).then(function(){refresh();});}
-function cancel(id){if(confirm('Отменить?')){fetch('./api/printers/'+id+'/cancel',{method:'POST'}).then(function(){refresh();});}}
-</script>
+<script src="app.js"></script>
 </body>
 </html>
