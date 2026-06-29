@@ -3,8 +3,8 @@
 
 import os, json, asyncio, logging, re, time
 from datetime import timedelta
-from aiohttp import web
-from typing import Dict, Any, Optional, List
+from aiohttp import web, WSMsgType
+from typing import Dict, Any, Optional, List, Set
 from enum import Enum
 from dataclasses import dataclass
 
@@ -419,6 +419,7 @@ class FlashforgeAddon:
         self.app = web.Application()
         self.setup_routes()
         self._poll_task: Optional[asyncio.Task] = None
+        self._websockets: Set[web.WebSocketResponse] = set()
     
     def setup_routes(self):
         self.app.router.add_get('/', self.handle_index)
@@ -431,7 +432,53 @@ class FlashforgeAddon:
         self.app.router.add_post('/api/printers/<printer_id>/pause', self.handle_pause)
         self.app.router.add_post('/api/printers/<printer_id>/resume', self.handle_resume)
         self.app.router.add_post('/api/printers/<printer_id>/cancel', self.handle_cancel)
+        self.app.router.add_get('/ws', self.handle_websocket)
         self.app.router.add_static('/static/', path='./static/', name='static')
+    
+    async def handle_websocket(self, request):
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        self._websockets.add(ws)
+        logger.info(f"WebSocket client connected, {len(self._websockets)} clients")
+        # Send initial state
+        await self._broadcast_state()
+        try:
+            async for msg in ws:
+                if msg.type == WSMsgType.TEXT:
+                    try:
+                        data = json.loads(msg.data)
+                        logger.debug(f"WS received: {data}")
+                    except json.JSONDecodeError:
+                        pass
+                elif msg.type == WSMsgType.ERROR:
+                    logger.error(f"WebSocket error: {ws.exception()}")
+        finally:
+            self._websockets.discard(ws)
+            logger.info(f"WebSocket client disconnected, {len(self._websockets)} clients")
+        return ws
+    
+    async def _broadcast_state(self):
+        if not self._websockets:
+            return
+        all_data = {}
+        for pid, printer in self.printers.items():
+            all_data[pid] = printer.printer_data
+        message = json.dumps({"type": "state", "printers": all_data})
+        for ws in self._websockets:
+            try:
+                await ws.send_str(message)
+            except Exception as e:
+                logger.debug(f"WS send error: {e}")
+    
+    async def _broadcast_update(self, printer_id: str, data: Dict):
+        if not self._websockets:
+            return
+        message = json.dumps({"type": "update", "printer_id": printer_id, "data": data})
+        for ws in self._websockets:
+            try:
+                await ws.send_str(message)
+            except Exception as e:
+                logger.debug(f"WS send error: {e}")
     
     async def handle_index(self, request):
         return web.FileResponse('./static/index.html')

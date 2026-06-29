@@ -1,13 +1,13 @@
-var data={},activeTab={},subnet='192.168.20.0/24',audio=null;
-window.onload=function(){var s=document.getElementById('subnet').value;if(s)subnet=s;refresh();setInterval(refresh,3000);};
-function refresh(){
-fetch('./api/printers').then(function(r){return r.json();}).then(function(d){
-var oldData=JSON.stringify(data);data={};
-if(d.printers&&d.printers.length>0){d.printers.forEach(function(p){data[p.id]=p.data||{};data[p.id].ip=p.ip;data[p.id].port=p.port;data[p.id].id=p.id;if(!activeTab[p.id])activeTab[p.id]='m';});}
-if(JSON.stringify(data)!==oldData){render();}else{updateData();}
-stats();
-}).catch(function(e){console.error(e);document.getElementById('grid').innerHTML='<div class="empty">Ошибка</div>';});
+var data={},activeTab={},ws=null,subnet='192.168.20.0/24',audio=null;
+window.onload=function(){var s=document.getElementById('subnet').value;if(s)subnet=s;connectWS();setInterval(checkWS,5000);};
+function connectWS(){
+ws=new WebSocket('ws://'+window.location.host+'/ws');
+ws.onopen=function(){console.log('WS connected');};
+ws.onmessage=function(e){var msg=JSON.parse(e.data);if(msg.type==='state'){data={};for(var id in msg.printers){data[id]=msg.printers[id];if(!activeTab[id])activeTab[id]='m';}render();stats();}else if(msg.type==='update'){var id=msg.printer_id;if(data[id]){for(var k in msg.data)data[id][k]=msg.data[k];}updateUI(id,msg.data);}};
+ws.onclose=function(){console.log('WS closed');ws=null;};
+ws.onerror=function(e){console.error('WS error',e);};
 }
+function checkWS(){if(!ws||ws.readyState!==WebSocket.OPEN){console.log('WS reconnecting...');connectWS();}}
 function stats(){var t=0,pr=0,r=0,pa=0,err=false;Object.keys(data).forEach(function(id){t++;var s=data[id].state||'disconnected';if(s==='printing')pr++;else if(s==='ready')r++;else if(s==='paused')pa++;else if(s==='error')err=true;});
 document.getElementById('total').textContent=t;document.getElementById('printing').textContent=pr;document.getElementById('ready').textContent=r;document.getElementById('paused').textContent=pa;if(err)play();}
 function play(){try{audio=new(window.AudioContext||window.webkitAudioContext)();for(var i=0;i<3;i++){setTimeout(function(){var o=audio.createOscillator(),g=audio.createGain();o.connect(g);g.connect(audio.destination);o.frequency.value=800;o.type='square';g.gain.value=0.3;o.start();setTimeout(function(){o.stop();},200);},i*400);}}catch(e){}}
@@ -23,8 +23,8 @@ h+='<div class="tab-c'+(activeTab[id]==='s'?' active':'')+'" id="s-'+id+'"><div 
 h+='<div class="tab-c'+(activeTab[id]==='c'?' active':'')+'" id="c-'+id+'"><div class="s-row"><span class="s-lbl">IP адрес</span><span class="s-val">'+(d.ip||'')+'</span></div><div class="s-row"><span class="s-lbl">Порт</span><span class="s-val">'+(d.port||8899)+'</span></div><div class="s-row"><span class="s-lbl">Серийный номер</span><span class="s-val">'+sn+'</span></div><div class="s-row"><span class="s-lbl">Check Code</span><span class="s-val">'+cc+'</span></div></div>';
 h+='<div class="p-act"><button class="btn btn-w" onclick="pause(\''+id+'\')" '+(d.state!=='printing'?'disabled':'')+'>Pause</button><button class="btn btn-s" onclick="resume(\''+id+'\')" '+(d.state!=='paused'?'disabled':'')+'>Resume</button><button class="btn btn-d" onclick="cancel(\''+id+'\')" '+((d.state!=='printing'&&d.state!=='paused')?'disabled':'')+'>Cancel</button></div>';
 card.innerHTML=h;g.appendChild(card);});}
-function updateData(){var ids=Object.keys(data);ids.forEach(function(id){var d=data[id],et=(d.extruder_temp||0).toFixed(1),ett=(d.extruder_target||0).toFixed(0),bt=(d.bed_temp||0).toFixed(1),btt=(d.bed_target||0).toFixed(0),prg=d.progress||0,fn=d.filename||'---',cl=d.current_layer||0,tl=d.total_layers||0,eta=fmt(d.remaining_time||0),el=fmt(d.elapsed_time||0),sn=d.serial_number||'N/A',cc=d.check_code||'N/A',ha=d.http_authenticated||false,ac=ha?'auth-ok':'auth-no',at=ha?'HTTP OK':'HTTP NO',fs=d.filament_status||'unknown',ds=d.door_status||'unknown';
-var card=document.getElementById('card-'+id);if(!card)return;
+function updateUI(id,d){var card=document.getElementById('card-'+id);if(!card)return;
+var et=(d.extruder_temp||0).toFixed(1),ett=(d.extruder_target||0).toFixed(0),bt=(d.bed_temp||0).toFixed(1),btt=(d.bed_target||0).toFixed(0),prg=d.progress||0,fn=d.filename||'---',cl=d.current_layer||0,tl=d.total_layers||0,eta=fmt(d.remaining_time||0),el=fmt(d.elapsed_time||0),fs=d.filament_status||'unknown',ds=d.door_status||'unknown';
 var etEl=document.getElementById('et-'+id),btEl=document.getElementById('bt-'+id),fnEl=document.getElementById('fn-'+id),pfEl=document.getElementById('pf-'+id),ptEl=document.getElementById('pt-'+id),clEl=document.getElementById('cl-'+id),tlEl=document.getElementById('tl-'+id),etaEl=document.getElementById('eta-'+id),elEl=document.getElementById('el-'+id);
 if(etEl)etEl.textContent=et+'°C';if(btEl)btEl.textContent=bt+'°C';if(fnEl)fnEl.textContent=fn;
 if(pfEl)pfEl.style.width=prg.toFixed(1)+'%';if(ptEl)ptEl.textContent=prg.toFixed(1)+'%';
@@ -33,12 +33,12 @@ var fsEl=document.getElementById('fs-'+id),dsEl=document.getElementById('ds-'+id
 if(fsEl)fsEl.textContent=(fs==='loaded'?'✅':fs==='runout'?'⚠️':fs);if(dsEl)dsEl.textContent=(ds==='closed'?'✅':ds==='open'?'⚠️':ds);
 if(tvocEl)tvocEl.textContent=(d.tvoc_value||0)+' mg/m³';if(fanEl)fanEl.textContent=(d.fan_speed||0)+'%';
 var hdr=card.querySelector('.p-ip'),sts=card.querySelector('.status');
-if(hdr)hdr.textContent=d.machine_name||d.ip||id;if(sts){var sc='st-'+(d.state||'disconnected');sts.className='status '+sc;sts.textContent=tr(d.state);}});}
+if(hdr)hdr.textContent=d.machine_name||d.ip||id;if(sts){var sc='st-'+(d.state||'disconnected');sts.className='status '+sc;sts.textContent=tr(d.state);}}
 function search(){var r=document.getElementById('results'),s=document.getElementById('subnet').value||subnet,p=document.getElementById('scanports').value||'8899';r.innerHTML='<div class="spinner"></div>';
 fetch('./api/discovery?subnet='+encodeURIComponent(s)+'&ports='+encodeURIComponent(p)).then(function(x){return x.json();}).then(function(d){r.innerHTML='';if(d.devices&&d.devices.length>0){d.devices.forEach(function(dev){var c=document.createElement('div'),i=dev.info||{};c.className='dev-c';c.innerHTML='<div class="dev-i"><span>'+(dev.ip||'')+':'+(dev.port||'')+'</span><span class="status st-ready">'+(i.status||'')+'</span></div><div class="dev-d">Machine: '+(i.machine_name||'N/A')+' | SN: '+(i.serial_number||'N/A')+'</div><button class="btn btn-p" onclick="sel(\''+(dev.ip||'')+'\','+(dev.port||8899)+')">Connect</button>';r.appendChild(c);});}else{r.innerHTML='<div class="empty">Не найдено</div>';}}).catch(function(e){r.innerHTML='<div class="empty">Error</div>';});}
 function sel(ip,port){document.getElementById('ip').value=ip;document.getElementById('port').value=port;}
 function connect(){var ip=document.getElementById('ip').value,port=document.getElementById('port').value;if(!ip){alert('Введите IP');return;}
-fetch('./api/printers/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_ip:ip,printer_port:parseInt(port)||8899})}).then(function(x){return x.json();}).then(function(r){if(r.status==='ok'||r.status==='connected_false'){alert('OK: '+(r.connected?'Подключен':'Нет подключения'));refresh();}else{alert('Error: '+(r.error||''));}}).catch(function(e){alert('Error: '+e.message);});}
-function pause(id){fetch('./api/printers/'+id+'/pause',{method:'POST'}).then(function(){refresh();});}
-function resume(id){fetch('./api/printers/'+id+'/resume',{method:'POST'}).then(function(){refresh();});}
-function cancel(id){if(confirm('Отменить?')){fetch('./api/printers/'+id+'/cancel',{method:'POST'}).then(function(){refresh();});}}
+fetch('./api/printers/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_ip:ip,printer_port:parseInt(port)||8899})}).then(function(x){return x.json();}).then(function(r){if(r.status==='ok'||r.status==='connected_false'){alert('OK: '+(r.connected?'Подключен':'Нет подключения'));}else{alert('Error: '+(r.error||''));}}).catch(function(e){alert('Error: '+e.message);});}
+function pause(id){fetch('./api/printers/'+id+'/pause',{method:'POST'});}
+function resume(id){fetch('./api/printers/'+id+'/resume',{method:'POST'});}
+function cancel(id){if(confirm('Отменить?')){fetch('./api/printers/'+id+'/cancel',{method:'POST'});}}
