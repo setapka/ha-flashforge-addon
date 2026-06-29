@@ -298,26 +298,33 @@ class DiscoveryService:
         for endpoint in endpoints:
             try:
                 url = f"http://{ip}:{port}{endpoint}"
+                logger.debug(f"Discovery checking {url}")
                 async with aiohttp.ClientSession() as session:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=2)) as response:
+                        logger.debug(f"Discovery {url} - status: {response.status}")
                         if response.status == 200:
                             try:
                                 data = await response.json()
                                 logger.debug(f"Host {ip}:{port}{endpoint} responded: {json.dumps(data)[:100]}")
                                 return {"valid": True, "ip": ip, "port": port, "type": "flashforge", "info": data}
-                            except:
-                                logger.debug(f"Host {ip}:{port}{endpoint} returned HTML/text - likely web server")
-                                return {"valid": True, "ip": ip, "port": port, "type": "unknown", "info": {}}
+                            except json.JSONDecodeError as je:
+                                logger.debug(f"Host {ip}:{port}{endpoint} returned non-JSON: {je}")
+                                # Still return as valid device but mark as unknown
+                                return {"valid": True, "ip": ip, "port": port, "type": "web", "info": {"endpoint": endpoint}}
+                            except Exception as e:
+                                logger.debug(f"Host {ip}:{port}{endpoint} parse error: {e}")
+                                continue
             except asyncio.TimeoutError:
                 logger.debug(f"Host {ip}:{port}{endpoint} timeout")
                 continue
-            except aiohttp.ClientError:
-                logger.debug(f"Host {ip}:{port}{endpoint} client error")
+            except aiohttp.ClientError as ce:
+                logger.debug(f"Host {ip}:{port}{endpoint} client error: {type(ce).__name__}: {ce}")
                 continue
             except Exception as e:
-                logger.debug(f"Host {ip}:{port}{endpoint} error: {type(e).__name__}")
+                logger.debug(f"Host {ip}:{port}{endpoint} unexpected error: {type(e).__name__}: {e}")
                 continue
         
+        logger.debug(f"Discovery: no valid endpoint found for {ip}:{port}")
         return None
 
 

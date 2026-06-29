@@ -117,11 +117,50 @@ let currentPrinterId=null;
 let printerData={state:'disconnected',extruder_temp:0,extruder_target:0,bed_temp:0,bed_target:0,progress:0,filename:'',print_duration:0};
 let defaultSubnet='192.168.1.0/24';
 document.addEventListener('DOMContentLoaded',function(){loadDefaultSubnet();loadPrinters();checkConnection();setInterval(pollData,2000);});
-function loadDefaultSubnet(){fetch('/api/discovery?subnet=').then(function(r){return r.json();}).then(function(data){if(data.subnet){defaultSubnet=data.subnet;document.getElementById('subnetInput').value=defaultSubnet;}}).catch(function(e){console.log('Using default subnet:',defaultSubnet);});}
+function loadDefaultSubnet(){
+    // Subnet is hardcoded from config.yaml defaults, user can change it manually
+    var configuredSubnet = document.getElementById('subnetInput').value;
+    if(configuredSubnet){
+        defaultSubnet = configuredSubnet;
+        console.log('Using configured subnet:', defaultSubnet);
+    }
+}
 function loadPrinters(){fetch('/api/printers').then(function(r){return r.json();}).then(function(data){var listDiv=document.getElementById('printersList');if(data.printers&&data.printers.length>0){listDiv.innerHTML='<h3>Подключенные принтеры:</h3>';data.printers.forEach(function(p){var item=document.createElement('div');item.className='printer-item';item.innerHTML='<span>'+p.ip+':'+p.port+' ('+p.state+')</span><button class="btn btn-danger" onclick="removePrinter(\''+p.id+'\')">Удалить</button>';listDiv.appendChild(item);});}else{listDiv.innerHTML='<p>Нет подключенных принтеров</p>';}}).catch(function(e){console.error('Load printers error:',e);});}
 function checkConnection(){fetch('/api/printers/data').then(function(r){return r.json();}).then(function(data){var printers=Object.keys(data);if(printers.length>0){currentPrinterId=printers[0];printerData=Object.assign({},printerData,data[currentPrinterId]);if(printerData.state!=='disconnected'){document.getElementById('setupScreen').classList.add('hidden');document.getElementById('dashboard').classList.remove('hidden');updateUI();}}else{document.getElementById('setupScreen').classList.remove('hidden');}}).catch(function(e){document.getElementById('setupScreen').classList.remove('hidden');});}
 function showSetup(){document.getElementById('dashboard').classList.add('hidden');document.getElementById('setupScreen').classList.remove('hidden');loadPrinters();}
-function searchPrinters(){var resultsDiv=document.getElementById('searchResults');var subnet=document.getElementById('subnetInput').value||defaultSubnet;var ports=document.getElementById('scanPorts').value||'8899';resultsDiv.innerHTML='<div class="spinner"></div>';fetch('/api/discovery?subnet='+encodeURIComponent(subnet)+'&ports='+encodeURIComponent(ports)).then(function(r){return r.json();}).then(function(data){resultsDiv.innerHTML='';if(data.devices&&data.devices.length>0){data.devices.forEach(function(device){var card=document.createElement('div');card.className='device-card';card.innerHTML='<span>'+device.ip+':'+device.port+'</span><button class="btn btn-primary" onclick="selectPrinter(\''+device.ip+'\','+device.port+')">Выбрать</button>';resultsDiv.appendChild(card);});}else{resultsDiv.innerHTML='<p>Принтеры не найдены. Попробуйте другую подсеть или порты.</p>';}}).catch(function(e){resultsDiv.innerHTML='<p>Ошибка поиска: '+e.message+'</p>';});}
+function searchPrinters(){
+    var resultsDiv=document.getElementById('searchResults');
+    var subnet=document.getElementById('subnetInput').value||defaultSubnet;
+    var ports=document.getElementById('scanPorts').value||'8899';
+    console.log('Starting discovery: subnet='+subnet+', ports='+ports);
+    resultsDiv.innerHTML='<div class="spinner"></div>';
+    
+    fetch('/api/discovery?subnet='+encodeURIComponent(subnet)+'&ports='+encodeURIComponent(ports))
+        .then(function(r){
+            if(!r.ok){
+                throw new Error('HTTP '+r.status);
+            }
+            return r.json();
+        })
+        .then(function(data){
+            console.log('Discovery result:', data);
+            resultsDiv.innerHTML='';
+            if(data.devices&&data.devices.length>0){
+                data.devices.forEach(function(device){
+                    var card=document.createElement('div');
+                    card.className='device-card';
+                    card.innerHTML='<span>'+device.ip+':'+device.port+' ('+(device.type||'unknown')+')</span><button class="btn btn-primary" onclick="selectPrinter(\''+device.ip+'\','+device.port+')">Выбрать</button>';
+                    resultsDiv.appendChild(card);
+                });
+            }else{
+                resultsDiv.innerHTML='<p>Принтеры не найдены. Попробуйте другую подсеть или порты.</p>';
+            }
+        })
+        .catch(function(e){
+            console.error('Discovery error:', e);
+            resultsDiv.innerHTML='<p>Ошибка поиска: '+e.message+'</p>';
+        });
+}
 function selectPrinter(ip,port){document.getElementById('printerIp').value=ip;document.getElementById('printerPort').value=port;}
 function connectPrinter(){var ip=document.getElementById('printerIp').value;var port=document.getElementById('printerPort').value;if(!ip){alert('Введите IP адрес');return;}fetch('/api/printers/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_ip:ip,printer_port:parseInt(port)||8899})}).then(function(r){return r.json();}).then(function(result){if(result.status==='ok'){alert('Принтер подключён!');loadPrinters();checkConnection();}else{alert('Ошибка подключения: '+(result.error||'Неизвестная ошибка'));}}).catch(function(e){alert('Ошибка: '+e.message);});}
 function removePrinter(pid){if(!confirm('Удалить принтер?'))return;fetch('/api/printers/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:pid})}).then(function(r){return r.json();}).then(function(result){if(result.status==='ok'){loadPrinters();checkConnection();}else{alert('Ошибка удаления: '+(result.error||'Неизвестная ошибка'));}}).catch(function(e){alert('Ошибка: '+e.message);});}
