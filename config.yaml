@@ -2,7 +2,7 @@ name: "Flashforge Adventurer 5M Control Panel"
 version: "1.0.0"
 slug: "flashforge_adv5m"
 description: "Интеграция и UI-панель для управления 3D-принтером Flashforge Adventurer 5M на базе Klipper/Moonraker"
-url: "https://github.com/username/ha-flashforge-addon"
+url: "https://github.com/setapka/ha-flashforge-addon"
 arch:
   - aarch64
   - amd64
